@@ -57,6 +57,8 @@ class _RelatorioPageState extends State<RelatorioPage> {
               totalPagoGeral += f.valorPago;
               totalAbertoGeral += f.valorFaltante;
 
+              final motivo = (f.motivoRejeicao ?? '').trim();
+
               data.add([
                 f.empresa,
                 f.responsavel,
@@ -68,6 +70,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
                 f.valorPago.toStringAsFixed(2),
                 f.valorFaltante.toStringAsFixed(2),
                 f.statusFrete,
+                motivo,
               ]);
             }
 
@@ -85,7 +88,6 @@ class _RelatorioPageState extends State<RelatorioPage> {
                 style: const pw.TextStyle(fontSize: 10),
               ),
               pw.SizedBox(height: 14),
-
               pw.Table.fromTextArray(
                 headers: const [
                   'Empresa',
@@ -98,6 +100,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
                   'Pago R\$',
                   'Aberto R\$',
                   'Status',
+                  'Motivo',
                 ],
                 data: data,
                 headerStyle: pw.TextStyle(
@@ -107,21 +110,20 @@ class _RelatorioPageState extends State<RelatorioPage> {
                 cellStyle: const pw.TextStyle(fontSize: 8),
                 cellPadding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 4),
                 columnWidths: const {
-                  0: pw.FlexColumnWidth(1.2),
-                  1: pw.FlexColumnWidth(1.1),
-                  2: pw.FlexColumnWidth(0.9),
-                  3: pw.FlexColumnWidth(1.4),
+                  0: pw.FlexColumnWidth(1.1),
+                  1: pw.FlexColumnWidth(1.0),
+                  2: pw.FlexColumnWidth(0.85),
+                  3: pw.FlexColumnWidth(1.25),
                   4: pw.FlexColumnWidth(0.9),
                   5: pw.FlexColumnWidth(0.9),
                   6: pw.FlexColumnWidth(0.9),
                   7: pw.FlexColumnWidth(0.8),
                   8: pw.FlexColumnWidth(0.8),
                   9: pw.FlexColumnWidth(0.8),
+                  10: pw.FlexColumnWidth(1.4),
                 },
               ),
-
               pw.SizedBox(height: 16),
-
               pw.Container(
                 padding: const pw.EdgeInsets.all(10),
                 decoration: pw.BoxDecoration(

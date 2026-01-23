@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:gerenciasallex/pages/exibefrete.dart';
 import '../database/frete_database.dart';
 import '../models/frete.dart';
+import '../pages/exibefrete.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback onAddFrete;
@@ -295,6 +295,13 @@ class _HomePageState extends State<HomePage> {
                 const Expanded(child: SizedBox()),
               ],
             ),
+            if ((frete.motivoRejeicao ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Motivo: ${frete.motivoRejeicao}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
             const SizedBox(height: 12),
             _acoesFrete(frete),
           ],
@@ -305,64 +312,86 @@ class _HomePageState extends State<HomePage> {
 
   Widget _acoesFrete(Frete frete) {
     if (frete.statusFrete == 'Pendente') {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () async {
-            final atualizado = Frete(
-              id: frete.id,
-              empresa: frete.empresa,
-              responsavel: frete.responsavel,
-              documento: frete.documento,
-              telefone: frete.telefone,
-              origem: frete.origem,
-              destino: frete.destino,
-              valorFrete: frete.valorFrete,
-              valorPago: frete.valorPago,
-              valorFaltante: frete.valorFaltante,
-              statusPagamento: frete.statusPagamento,
-              statusFrete: 'Coletado',
-              dataColeta: DateTime.now().toIso8601String(),
-              dataEntrega: frete.dataEntrega,
-              motivoRejeicao: frete.motivoRejeicao,
-            );
-            await database.updateFrete(atualizado);
-            carregar();
-          },
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-          child: const Text('Confirmar Coleta'),
-        ),
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () async {
+                final atualizado = Frete(
+                  id: frete.id,
+                  empresa: frete.empresa,
+                  responsavel: frete.responsavel,
+                  documento: frete.documento,
+                  telefone: frete.telefone,
+                  origem: frete.origem,
+                  destino: frete.destino,
+                  valorFrete: frete.valorFrete,
+                  valorPago: frete.valorPago,
+                  valorFaltante: frete.valorFaltante,
+                  statusPagamento: frete.statusPagamento,
+                  statusFrete: 'Coletado',
+                  dataColeta: DateTime.now().toIso8601String(),
+                  dataEntrega: frete.dataEntrega,
+                  motivoRejeicao: frete.motivoRejeicao,
+                );
+                await database.updateFrete(atualizado);
+                carregar();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Confirmar Coleta'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => _rejeitarComMotivo(frete),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Rejeitar'),
+            ),
+          ),
+        ],
       );
     }
 
     if (frete.statusFrete == 'Coletado') {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () async {
-            final atualizado = Frete(
-              id: frete.id,
-              empresa: frete.empresa,
-              responsavel: frete.responsavel,
-              documento: frete.documento,
-              telefone: frete.telefone,
-              origem: frete.origem,
-              destino: frete.destino,
-              valorFrete: frete.valorFrete,
-              valorPago: frete.valorPago,
-              valorFaltante: frete.valorFaltante,
-              statusPagamento: frete.statusPagamento,
-              statusFrete: 'Entregue',
-              dataColeta: frete.dataColeta,
-              dataEntrega: DateTime.now().toIso8601String(),
-              motivoRejeicao: frete.motivoRejeicao,
-            );
-            await database.updateFrete(atualizado);
-            carregar();
-          },
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-          child: const Text('Confirmar Entrega'),
-        ),
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () async {
+                final atualizado = Frete(
+                  id: frete.id,
+                  empresa: frete.empresa,
+                  responsavel: frete.responsavel,
+                  documento: frete.documento,
+                  telefone: frete.telefone,
+                  origem: frete.origem,
+                  destino: frete.destino,
+                  valorFrete: frete.valorFrete,
+                  valorPago: frete.valorPago,
+                  valorFaltante: frete.valorFaltante,
+                  statusPagamento: frete.statusPagamento,
+                  statusFrete: 'Entregue',
+                  dataColeta: frete.dataColeta,
+                  dataEntrega: DateTime.now().toIso8601String(),
+                  motivoRejeicao: frete.motivoRejeicao,
+                );
+                await database.updateFrete(atualizado);
+                carregar();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              child: const Text('Confirmar Entrega'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => _rejeitarComMotivo(frete),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Rejeitar'),
+            ),
+          ),
+        ],
       );
     }
 
@@ -391,6 +420,81 @@ class _HomePageState extends State<HomePage> {
         child: const Text('Rejeitado'),
       ),
     );
+  }
+
+  Future<void> _rejeitarComMotivo(Frete frete) async {
+    final motivoController = TextEditingController();
+    bool podeConfirmar = false;
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Rejeitar frete'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Informe o motivo da rejeição (obrigatório).'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: motivoController,
+                    maxLines: 3,
+                    onChanged: (v) {
+                      setStateDialog(() {
+                        podeConfirmar = v.trim().isNotEmpty;
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Motivo',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: podeConfirmar ? () => Navigator.pop(context, true) : null,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Rejeitar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmado != true) return;
+
+    final motivo = motivoController.text.trim();
+    if (motivo.isEmpty) return;
+
+    final atualizado = Frete(
+      id: frete.id,
+      empresa: frete.empresa,
+      responsavel: frete.responsavel,
+      documento: frete.documento,
+      telefone: frete.telefone,
+      origem: frete.origem,
+      destino: frete.destino,
+      valorFrete: frete.valorFrete,
+      valorPago: frete.valorPago,
+      valorFaltante: frete.valorFaltante,
+      statusPagamento: frete.statusPagamento,
+      statusFrete: 'Rejeitado',
+      dataColeta: frete.dataColeta,
+      dataEntrega: frete.dataEntrega,
+      motivoRejeicao: motivo,
+    );
+
+    await database.updateFrete(atualizado);
+    carregar();
   }
 
   Color _corStatusFrete(String status) {

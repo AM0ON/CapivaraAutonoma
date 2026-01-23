@@ -305,6 +305,8 @@ class _EditarFretePageState extends State<EditarFretePage> {
 
   @override
   Widget build(BuildContext context) {
+    final motivo = (widget.frete.motivoRejeicao ?? '').trim();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Editar Frete'),
@@ -320,6 +322,19 @@ class _EditarFretePageState extends State<EditarFretePage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
+            if (motivo.isNotEmpty) ...[
+              TextFormField(
+                initialValue: motivo,
+                readOnly: true,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Motivo da rejeição',
+                  prefixIcon: const Icon(Icons.report),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
             _titulo('Dados do frete'),
             _campoTexto('Empresa', empresa, Icons.business),
             _campoTexto('Contratante', responsavel, Icons.person),
