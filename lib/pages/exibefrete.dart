@@ -7,19 +7,19 @@ import '../database/frete_database.dart';
 import '../models/frete.dart';
 import '../services/cidades.dart';
 
-class EditarFretePage extends StatefulWidget {
+class ExibeFretePage extends StatefulWidget {
   final Frete frete;
 
-  const EditarFretePage({
+  const ExibeFretePage({
     super.key,
     required this.frete,
   });
 
   @override
-  State<EditarFretePage> createState() => _EditarFretePageState();
+  State<ExibeFretePage> createState() => _ExibeFretePageState();
 }
 
-class _EditarFretePageState extends State<EditarFretePage> {
+class _ExibeFretePageState extends State<ExibeFretePage> {
   final _formKey = GlobalKey<FormState>();
   final FreteDatabase database = FreteDatabase.instance;
 
@@ -45,7 +45,10 @@ class _EditarFretePageState extends State<EditarFretePage> {
   @override
   void initState() {
     super.initState();
-    CidadeService.init();
+
+    CidadeService.init().then((_) {
+      if (mounted) setState(() {});
+    });
 
     final f = widget.frete;
 
@@ -140,6 +143,7 @@ class _EditarFretePageState extends State<EditarFretePage> {
     if (id == null) return;
 
     final lista = await database.listarDespesasDoFrete(id);
+
     setState(() {
       despesas = lista;
     });
@@ -190,112 +194,6 @@ class _EditarFretePageState extends State<EditarFretePage> {
     saldoCtrl.text = _formatador.format(aberto);
   }
 
-  Future<void> _adicionarDespesa() async {
-    String tipoSelecionado = 'Combustível';
-    final tipoOutro = TextEditingController();
-    final valor = TextEditingController();
-    final observacao = TextEditingController();
-
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            final mostrarOutro = tipoSelecionado == 'Outros';
-            return AlertDialog(
-              title: const Text('Adicionar despesa'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: tipoSelecionado,
-                      items: const [
-                        DropdownMenuItem(value: 'Combustível', child: Text('Combustível')),
-                        DropdownMenuItem(value: 'Alimentação', child: Text('Alimentação')),
-                        DropdownMenuItem(value: 'Manutenção', child: Text('Manutenção')),
-                        DropdownMenuItem(value: 'Avulsos', child: Text('Avulsos')),
-                        DropdownMenuItem(value: 'Outros', child: Text('Outros')),
-                      ],
-                      onChanged: (v) {
-                        setStateDialog(() {
-                          tipoSelecionado = v ?? 'Combustível';
-                        });
-                      },
-                      decoration: const InputDecoration(labelText: 'Tipo'),
-                    ),
-                    if (mostrarOutro) ...[
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: tipoOutro,
-                        decoration: const InputDecoration(labelText: 'Descreva o tipo'),
-                      ),
-                    ],
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: valor,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [ReaisInputFormatter()],
-                      decoration: const InputDecoration(labelText: 'Valor'),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: observacao,
-                      decoration: const InputDecoration(labelText: 'Observação (opcional)'),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Adicionar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (confirmado != true) return;
-
-    final idFrete = widget.frete.id;
-    if (idFrete == null) return;
-
-    var tipoFinal = tipoSelecionado;
-    if (tipoSelecionado == 'Outros') {
-      final t = tipoOutro.text.trim();
-      if (t.isNotEmpty) tipoFinal = t;
-    }
-
-    final valorNum = _parseReais(valor.text);
-    if (tipoFinal.trim().isEmpty || valorNum <= 0) return;
-
-    await database.inserirDespesa(
-      freteId: idFrete,
-      tipo: tipoFinal.trim(),
-      valor: valorNum,
-      observacao: observacao.text.trim(),
-      criadoEm: DateTime.now().toIso8601String(),
-    );
-
-    await _carregarDespesas();
-  }
-
-  Future<void> _removerDespesa(Map<String, dynamic> d) async {
-    final id = d['id'];
-    final idNum = id is int ? id : int.tryParse('$id');
-    if (idNum == null) return;
-
-    await database.removerDespesa(idNum);
-    await _carregarDespesas();
-  }
-
   Future<void> _salvar() async {
     if (!_formKey.currentState!.validate()) return;
     await _salvarFreteRecalculado();
@@ -335,17 +233,52 @@ class _EditarFretePageState extends State<EditarFretePage> {
               ),
               const SizedBox(height: 14),
             ],
-            _titulo('Dados do frete'),
-            _campoTexto('Empresa', empresa, Icons.business),
-            _campoTexto('Contratante', responsavel, Icons.person),
-            _campoTexto('Documento de identificação (CNPJ ou CPF)', documento, Icons.badge),
-            _campoTexto('Telefone', telefone, Icons.phone),
-            _campoCidade('Origem', origem, Icons.my_location),
-            _campoCidade('Destino', destino, Icons.location_on),
-            const SizedBox(height: 12),
-            _titulo('Valores'),
-            _campoValor('Valor do Frete (bruto)', valorFreteBruto, Icons.local_shipping),
-            _campoValor('Valor pago', valorPago, Icons.attach_money),
+            _textField(
+              label: 'Empresa',
+              controller: empresa,
+              icon: Icons.business,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
+            ),
+            _textField(
+              label: 'Contratante',
+              controller: responsavel,
+              icon: Icons.person,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
+            ),
+            _textField(
+              label: 'Documento de identificação (CNPJ ou CPF)',
+              controller: documento,
+              icon: Icons.badge,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
+            ),
+            _textField(
+              label: 'Telefone',
+              controller: telefone,
+              icon: Icons.phone,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
+            ),
+            _cityField(
+              label: 'Origem',
+              controller: origem,
+              icon: Icons.my_location,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
+            ),
+            _cityField(
+              label: 'Destino',
+              controller: destino,
+              icon: Icons.location_on,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
+            ),
+            _moneyField(
+              label: 'Valor do Frete (bruto)',
+              controller: valorFreteBruto,
+              icon: Icons.local_shipping,
+            ),
+            _moneyField(
+              label: 'Valor pago',
+              controller: valorPago,
+              icon: Icons.attach_money,
+            ),
             TextFormField(
               controller: totalDespesasCtrl,
               readOnly: true,
@@ -370,66 +303,11 @@ class _EditarFretePageState extends State<EditarFretePage> {
               controller: saldoCtrl,
               readOnly: true,
               decoration: InputDecoration(
-                labelText: 'Saldo em aberto (já descontando despesas)',
+                labelText: 'Saldo em aberto',
                 prefixIcon: const Icon(Icons.account_balance),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
-            const SizedBox(height: 18),
-            _titulo('Despesas do frete'),
-            SizedBox(
-              height: 56,
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _adicionarDespesa,
-                icon: const Icon(Icons.add),
-                label: const Text('Adicionar despesa'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (despesas.isEmpty)
-              const Text('Nenhuma despesa adicionada.', style: TextStyle(color: Colors.grey))
-            else
-              ...despesas.map((d) {
-                final tipo = (d['tipo'] ?? '').toString();
-                final obs = (d['observacao'] ?? '').toString();
-                final v = d['valor'];
-                final valorNum = v is num ? v.toDouble() : (double.tryParse('$v') ?? 0.0);
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 6),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(tipo, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
-                            Text(_formatador.format(valorNum)),
-                            if (obs.trim().isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(obs, style: const TextStyle(color: Colors.grey)),
-                            ],
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _removerDespesa(d),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
             const SizedBox(height: 18),
             SizedBox(
               height: 56,
@@ -445,75 +323,78 @@ class _EditarFretePageState extends State<EditarFretePage> {
     );
   }
 
-  Widget _titulo(String t) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(t, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _campoTexto(String label, TextEditingController c, IconData i) {
+  Widget _textField({
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+    String? Function(String?)? validator,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
-        controller: c,
+        controller: controller,
+        validator: validator,
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(i),
+          prefixIcon: Icon(icon),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
       ),
     );
   }
 
-  Widget _campoValor(String label, TextEditingController c, IconData i) {
+  Widget _moneyField({
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
-        controller: c,
+        controller: controller,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [ReaisInputFormatter()],
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(i),
+          prefixIcon: Icon(icon),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        validator: (v) => _parseReais(v ?? '') < 0 ? 'Valor inválido' : null,
       ),
     );
   }
 
-  Widget _campoCidade(String label, TextEditingController controller, IconData icon) {
+  Widget _cityField({
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+    String? Function(String?)? validator,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TypeAheadField<String>(
+        debounceDuration: const Duration(milliseconds: 200),
         suggestionsCallback: (pattern) {
           return CidadeService.search(pattern);
         },
+        emptyBuilder: (context) => const SizedBox.shrink(),
         builder: (context, textController, focusNode) {
-          if (textController.text != controller.text) {
-            textController.text = controller.text;
-            textController.selection = TextSelection.collapsed(
-              offset: textController.text.length,
-            );
-          }
-
           return TextFormField(
-            controller: textController,
+            controller: controller,
             focusNode: focusNode,
+            validator: (_) => validator?.call(controller.text),
             decoration: InputDecoration(
               labelText: label,
               prefixIcon: Icon(icon),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
             ),
-            onChanged: (value) => controller.text = value,
-            validator: (v) => controller.text.trim().isEmpty ? 'Campo obrigatório' : null,
           );
         },
-        itemBuilder: (context, suggestion) => ListTile(title: Text(suggestion)),
+        itemBuilder: (context, suggestion) {
+          return ListTile(title: Text(suggestion));
+        },
         onSelected: (suggestion) {
           controller.text = suggestion;
+          controller.selection = TextSelection.collapsed(offset: controller.text.length);
           FocusManager.instance.primaryFocus?.unfocus();
         },
       ),

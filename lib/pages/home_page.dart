@@ -99,7 +99,7 @@ class _HomePageState extends State<HomePage> {
             icone: Icons.today,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 15),
         Expanded(
           child: _cardResumo(
             titulo: 'Financeiro',
@@ -107,7 +107,7 @@ class _HomePageState extends State<HomePage> {
             icone: Icons.account_balance_wallet,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 15),
         Expanded(
           child: _cardResumo(
             titulo: 'Pendentes',
@@ -163,15 +163,15 @@ class _HomePageState extends State<HomePage> {
             onTap: () {},
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 15),
         Expanded(
           child: _cardAcao(
-            titulo: 'Despesas',
-            icone: Icons.receipt_long,
+            titulo: 'Premium',
+            icone: Icons.workspace_premium_rounded,
             onTap: () {},
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 15),
         Expanded(
           child: _cardAcao(
             titulo: 'Texto Fiscal',
@@ -232,7 +232,7 @@ class _HomePageState extends State<HomePage> {
         final atualizado = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
-            builder: (_) => EditarFretePage(frete: frete),
+            builder: (_) => ExibeFretePage(frete: frete),
           ),
         );
 

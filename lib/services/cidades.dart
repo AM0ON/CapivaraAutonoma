@@ -1,50 +1,88 @@
 import 'package:flutter/services.dart';
 
 class CidadeService {
-  static List<String> _cache = [];
-  static bool _loaded = false;
+  static bool _iniciado = false;
+  static Future<void>? _carregando;
 
-  // ⚠️ TEM que ser exatamente o mesmo caminho do pubspec.yaml
-  static const String assetPath = 'lib/utils/assets/cidades.txt';
+  static final List<String> _cidades = [];
+  static final List<String> _cidadesNormalizadas = [];
 
-  static Future<void> init() async {
-    if (_loaded) return;
+  static Future<void> init() {
+    if (_iniciado) return Future.value();
+    _carregando ??= _carregar();
+    return _carregando!;
+  }
 
-    final raw = await rootBundle.loadString(assetPath);
-    _cache = raw
-        .split('\n')
+  static Future<void> _carregar() async {
+    final conteudo = await rootBundle.loadString('lib/utils/assets/cidades.txt');
+
+    final linhas = conteudo
+        .split(RegExp(r'\r?\n'))
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
 
-    _loaded = true;
+    _cidades
+      ..clear()
+      ..addAll(linhas);
 
-    // ✅ DEBUG: veja no console se carregou 5000+ cidades
-    // ignore: avoid_print
-    print('CidadeService: carregou ${_cache.length} cidades de $assetPath');
+    _cidadesNormalizadas
+      ..clear()
+      ..addAll(linhas.map(_normalizar));
+
+    _iniciado = true;
   }
 
-  static Future<List<String>> search(String query) async {
-    await init();
+  static List<String> search(String pattern) {
+    if (!_iniciado) return [];
 
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) return [];
+    final termo = _normalizar(pattern);
 
-    final res = _cache
-        .where((c) => c.toLowerCase().contains(q))
-        .take(12)
-        .toList();
+    if (termo.isEmpty) return [];
+    if (termo.length < 2) return [];
 
-    // ✅ DEBUG: veja se está retornando sugestões
-    // ignore: avoid_print
-    print('CidadeService.search("$query") => ${res.length} resultados');
+    const limite = 20;
+    final resultados = <String>[];
 
-    return res;
+    for (var i = 0; i < _cidadesNormalizadas.length; i++) {
+      if (_cidadesNormalizadas[i].contains(termo)) {
+        resultados.add(_cidades[i]);
+        if (resultados.length >= limite) break;
+      }
+    }
+
+    return resultados;
   }
 
-  // ✅ teste rápido: pega 5 cidades
-  static Future<List<String>> first5() async {
-    await init();
-    return _cache.take(5).toList();
+  static String _normalizar(String texto) {
+    var t = texto.trim().toLowerCase();
+    if (t.isEmpty) return 'Não encontrado';
+
+    t = t
+        .replaceAll('á', 'a')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('ä', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('ë', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ì', 'i')
+        .replaceAll('î', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ò', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('õ', 'o')
+        .replaceAll('ö', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('ç', 'c');
+
+    return t;
   }
 }

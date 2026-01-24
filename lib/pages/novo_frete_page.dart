@@ -40,7 +40,10 @@ class _NovoFretePageState extends State<NovoFretePage> {
   @override
   void initState() {
     super.initState();
-    CidadeService.init();
+
+    CidadeService.init().then((_) {
+      if (mounted) setState(() {});
+    });
 
     telefone.text = '+55 ';
 
@@ -277,18 +280,14 @@ class _NovoFretePageState extends State<NovoFretePage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TypeAheadField<String>(
+        debounceDuration: const Duration(milliseconds: 200),
         suggestionsCallback: (pattern) {
           return CidadeService.search(pattern);
         },
+        emptyBuilder: (context) => const SizedBox.shrink(),
         builder: (context, textController, focusNode) {
-          if (textController.text != controller.text) {
-            textController.text = controller.text;
-            textController.selection =
-                TextSelection.collapsed(offset: textController.text.length);
-          }
-
           return TextFormField(
-            controller: textController,
+            controller: controller,
             focusNode: focusNode,
             validator: (_) => validator?.call(controller.text),
             decoration: InputDecoration(
@@ -296,7 +295,6 @@ class _NovoFretePageState extends State<NovoFretePage> {
               prefixIcon: Icon(icon),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
             ),
-            onChanged: (value) => controller.text = value,
           );
         },
         itemBuilder: (context, suggestion) {
@@ -304,6 +302,7 @@ class _NovoFretePageState extends State<NovoFretePage> {
         },
         onSelected: (suggestion) {
           controller.text = suggestion;
+          controller.selection = TextSelection.collapsed(offset: controller.text.length);
           FocusManager.instance.primaryFocus?.unfocus();
         },
       ),
