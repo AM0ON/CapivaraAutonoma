@@ -15,6 +15,7 @@ class CidadeService {
 
   static Future<void> _carregar() async {
     final conteudo = await rootBundle.loadString('lib/utils/assets/cidades.txt');
+  print('CIDADES CARREGADAS: ${conteudo.length}');
 
     final linhas = conteudo
         .split(RegExp(r'\r?\n'))
@@ -39,7 +40,7 @@ class CidadeService {
     final termo = _normalizar(pattern);
 
     if (termo.isEmpty) return [];
-    if (termo.length < 2) return [];
+    if (termo.length < 1) return [];
 
     const limite = 20;
     final resultados = <String>[];

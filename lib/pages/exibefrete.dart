@@ -31,6 +31,9 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
   final origem = TextEditingController();
   final destino = TextEditingController();
 
+  final focoOrigem = FocusNode();
+  final focoDestino = FocusNode();
+
   final valorFreteBruto = TextEditingController();
   final valorPago = TextEditingController();
 
@@ -46,9 +49,7 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
   void initState() {
     super.initState();
 
-    CidadeService.init().then((_) {
-      if (mounted) setState(() {});
-    });
+    CidadeService.init();
 
     final f = widget.frete;
 
@@ -76,6 +77,9 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
   void dispose() {
     valorFreteBruto.removeListener(_recalcularLocal);
     valorPago.removeListener(_recalcularLocal);
+
+    focoOrigem.dispose();
+    focoDestino.dispose();
 
     empresa.dispose();
     responsavel.dispose();
@@ -260,12 +264,14 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
             _cityField(
               label: 'Origem',
               controller: origem,
+              focusNode: focoOrigem,
               icon: Icons.my_location,
               validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
             ),
             _cityField(
               label: 'Destino',
               controller: destino,
+              focusNode: focoDestino,
               icon: Icons.location_on,
               validator: (v) => v == null || v.trim().isEmpty ? 'Campo obrigatório' : null,
             ),
@@ -366,12 +372,15 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
   Widget _cityField({
     required String label,
     required TextEditingController controller,
+    required FocusNode focusNode,
     required IconData icon,
     String? Function(String?)? validator,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TypeAheadField<String>(
+        controller: controller,
+        focusNode: focusNode,
         debounceDuration: const Duration(milliseconds: 200),
         suggestionsCallback: (pattern) {
           return CidadeService.search(pattern);
@@ -379,9 +388,9 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
         emptyBuilder: (context) => const SizedBox.shrink(),
         builder: (context, textController, focusNode) {
           return TextFormField(
-            controller: controller,
+            controller: textController,
             focusNode: focusNode,
-            validator: (_) => validator?.call(controller.text),
+            validator: (_) => validator?.call(textController.text),
             decoration: InputDecoration(
               labelText: label,
               prefixIcon: Icon(icon),

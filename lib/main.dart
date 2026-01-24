@@ -31,7 +31,20 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int index = 0;
-  Key homeReloadKey = UniqueKey();
+
+  late final List<Widget> pages = [
+    HomePage(
+      onAddFrete: () {
+        setState(() => index = 1);
+      },
+    ),
+    NovoFretePage(
+      onSaved: () {
+        setState(() => index = 0);
+      },
+    ),
+    const RelatorioPage(),
+  ];
 
   String get title {
     if (index == 0) return 'Fretes';
@@ -43,69 +56,44 @@ class _MainPageState extends State<MainPage> {
     setState(() => index = newIndex);
   }
 
-  void onFreteSaved() {
-    setState(() {
-      homeReloadKey = UniqueKey();
-      index = 0;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: index == 0,
-      onPopInvoked: (didPop) {
-        if (didPop) return;
-        if (index != 0) {
-          setState(() => index = 0);
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(title: Text(title)),
-        drawer: Drawer(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              const DrawerHeader(
-                child: Text('Menu'),
-              ),
-              ListTile(
-                title: const Text('Fretes'),
-                onTap: () {
-                  Navigator.pop(context);
-                  goTo(0);
-                },
-              ),
-              ListTile(
-                title: const Text('Novo Frete'),
-                onTap: () {
-                  Navigator.pop(context);
-                  goTo(1);
-                },
-              ),
-              ListTile(
-                title: const Text('Relatório'),
-                onTap: () {
-                  Navigator.pop(context);
-                  goTo(2);
-                },
-              ),
-            ],
-          ),
-        ),
-        body: IndexedStack(
-          index: index,
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
-            HomePage(
-              key: homeReloadKey,
-              onAddFrete: () => goTo(1),
+            const DrawerHeader(
+              child: Text('Menu'),
             ),
-            NovoFretePage(
-              onSaved: onFreteSaved,
+            ListTile(
+              title: const Text('Fretes'),
+              onTap: () {
+                Navigator.pop(context);
+                goTo(0);
+              },
             ),
-            const RelatorioPage(),
+            ListTile(
+              title: const Text('Novo Frete'),
+              onTap: () {
+                Navigator.pop(context);
+                goTo(1);
+              },
+            ),
+            ListTile(
+              title: const Text('Relatório'),
+              onTap: () {
+                Navigator.pop(context);
+                goTo(2);
+              },
+            ),
           ],
         ),
+      ),
+      body: IndexedStack(
+        index: index,
+        children: pages,
       ),
     );
   }

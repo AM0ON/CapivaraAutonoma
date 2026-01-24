@@ -88,7 +88,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
                 style: const pw.TextStyle(fontSize: 10),
               ),
               pw.SizedBox(height: 14),
-              pw.Table.fromTextArray(
+              pw.TableHelper.fromTextArray(
                 headers: const [
                   'Empresa',
                   'Contratante',

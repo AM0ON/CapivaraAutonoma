@@ -31,6 +31,9 @@ class _NovoFretePageState extends State<NovoFretePage> {
   final origem = TextEditingController();
   final destino = TextEditingController();
 
+  final focoOrigem = FocusNode();
+  final focoDestino = FocusNode();
+
   final valorFrete = TextEditingController();
   final valorPago = TextEditingController();
   final saldoAberto = TextEditingController();
@@ -41,9 +44,7 @@ class _NovoFretePageState extends State<NovoFretePage> {
   void initState() {
     super.initState();
 
-    CidadeService.init().then((_) {
-      if (mounted) setState(() {});
-    });
+    CidadeService.init();
 
     telefone.text = '+55 ';
 
@@ -72,6 +73,9 @@ class _NovoFretePageState extends State<NovoFretePage> {
   void dispose() {
     valorFrete.removeListener(_recalcularSaldo);
     valorPago.removeListener(_recalcularSaldo);
+
+    focoOrigem.dispose();
+    focoDestino.dispose();
 
     empresa.dispose();
     contratante.dispose();
@@ -277,9 +281,13 @@ class _NovoFretePageState extends State<NovoFretePage> {
     required IconData icon,
     String? Function(String?)? validator,
   }) {
+    final foco = controller == origem ? focoOrigem : focoDestino;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TypeAheadField<String>(
+        controller: controller,
+        focusNode: foco,
         debounceDuration: const Duration(milliseconds: 200),
         suggestionsCallback: (pattern) {
           return CidadeService.search(pattern);
@@ -287,9 +295,9 @@ class _NovoFretePageState extends State<NovoFretePage> {
         emptyBuilder: (context) => const SizedBox.shrink(),
         builder: (context, textController, focusNode) {
           return TextFormField(
-            controller: controller,
+            controller: textController,
             focusNode: focusNode,
-            validator: (_) => validator?.call(controller.text),
+            validator: (_) => validator?.call(textController.text),
             decoration: InputDecoration(
               labelText: label,
               prefixIcon: Icon(icon),
