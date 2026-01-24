@@ -3,6 +3,7 @@ import '../database/frete_database.dart';
 import '../models/frete.dart';
 import '../pages/exibefrete.dart';
 import '../pages/premium.dart';
+import 'relatorio_page.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback onAddFrete;
@@ -155,10 +156,17 @@ class _HomePageState extends State<HomePage> {
       children: [
         Expanded(
           child: _cardAcao(
-            titulo: 'Relatório',
-            icone: Icons.bar_chart,
-            onTap: () {},
-          ),
+        titulo: 'Relatorio',
+        icone: Icons.add_chart_rounded,
+        onTap: () {
+        Navigator.push(
+        context,
+        MaterialPageRoute(
+        builder: (_) => const RelatorioPage(),
+      ),
+    );
+  },
+),
         ),
         const SizedBox(width: 15),
         Expanded(
