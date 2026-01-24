@@ -34,6 +34,42 @@ class Frete {
     this.motivoRejeicao,
   });
 
+  Frete copyWith({
+    int? id,
+    String? empresa,
+    String? responsavel,
+    String? documento,
+    String? telefone,
+    String? origem,
+    String? destino,
+    double? valorFrete,
+    double? valorPago,
+    double? valorFaltante,
+    String? statusPagamento,
+    String? statusFrete,
+    String? dataColeta,
+    String? dataEntrega,
+    String? motivoRejeicao,
+  }) {
+    return Frete(
+      id: id ?? this.id,
+      empresa: empresa ?? this.empresa,
+      responsavel: responsavel ?? this.responsavel,
+      documento: documento ?? this.documento,
+      telefone: telefone ?? this.telefone,
+      origem: origem ?? this.origem,
+      destino: destino ?? this.destino,
+      valorFrete: valorFrete ?? this.valorFrete,
+      valorPago: valorPago ?? this.valorPago,
+      valorFaltante: valorFaltante ?? this.valorFaltante,
+      statusPagamento: statusPagamento ?? this.statusPagamento,
+      statusFrete: statusFrete ?? this.statusFrete,
+      dataColeta: dataColeta ?? this.dataColeta,
+      dataEntrega: dataEntrega ?? this.dataEntrega,
+      motivoRejeicao: motivoRejeicao ?? this.motivoRejeicao,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

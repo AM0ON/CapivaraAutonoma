@@ -225,8 +225,9 @@ class _HomePageState extends State<HomePage> {
     final id = frete.id;
     final despesas = (id != null) ? (totalDespesasPorFrete[id] ?? 0.0) : 0.0;
 
-    final valorLiquido = frete.valorFrete;
-    final valorBruto = valorLiquido + despesas;
+    final valorBruto = frete.valorFrete;
+    var valorLiquido = valorBruto - despesas;
+    if (valorLiquido < 0) valorLiquido = 0;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -237,7 +238,10 @@ class _HomePageState extends State<HomePage> {
             builder: (_) => ExibeFretePage(frete: frete),
           ),
         );
-        if (atualizado == true) carregar();
+
+        if (atualizado == true) {
+          carregar();
+        }
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -268,7 +272,10 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: Text(
                     frete.statusFrete,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -283,6 +290,21 @@ class _HomePageState extends State<HomePage> {
                 Expanded(child: _linhaValor('Aberto', frete.valorFaltante)),
               ],
             ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _linhaValor('Despesas', despesas)),
+                Expanded(child: _linhaValor('Líquido', valorLiquido)),
+                const Expanded(child: SizedBox()),
+              ],
+            ),
+            if ((frete.motivoRejeicao ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Motivo: ${frete.motivoRejeicao}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
           ],
         ),
       ),
@@ -329,15 +351,13 @@ class CardAcaoPremium extends StatefulWidget {
   State<CardAcaoPremium> createState() => _CardAcaoPremiumState();
 }
 
-class _CardAcaoPremiumState extends State<CardAcaoPremium>
-    with SingleTickerProviderStateMixin {
+class _CardAcaoPremiumState extends State<CardAcaoPremium> with SingleTickerProviderStateMixin {
   late final AnimationController _controlador = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
   )..repeat(reverse: true);
 
-  late final Animation<double> _escala =
-      Tween<double>(begin: 1.0, end: 1.03).animate(
+  late final Animation<double> _escala = Tween<double>(begin: 1.0, end: 1.03).animate(
     CurvedAnimation(parent: _controlador, curve: Curves.easeInOut),
   );
 
@@ -393,7 +413,7 @@ class _CardAcaoPremiumState extends State<CardAcaoPremium>
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
-                      'VIP',
+                      'PRO',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
