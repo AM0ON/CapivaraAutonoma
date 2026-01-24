@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../database/frete_database.dart';
 import '../models/frete.dart';
 import '../pages/exibefrete.dart';
+import '../pages/premium.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback onAddFrete;
@@ -135,7 +136,6 @@ class _HomePageState extends State<HomePage> {
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icone, color: Colors.blue, size: 28),
           const SizedBox(height: 10),
@@ -143,10 +143,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 4),
           Text(
             valor,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ],
       ),
@@ -165,10 +162,15 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(width: 15),
         Expanded(
-          child: _cardAcao(
-            titulo: 'Premium',
-            icone: Icons.workspace_premium_rounded,
-            onTap: () {},
+          child: CardAcaoPremium(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PremiumPage(),
+                ),
+              );
+            },
           ),
         ),
         const SizedBox(width: 15),
@@ -192,6 +194,7 @@ class _HomePageState extends State<HomePage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
+        height: 86,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -202,7 +205,6 @@ class _HomePageState extends State<HomePage> {
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(icone, color: Colors.blue, size: 28),
             const SizedBox(height: 8),
@@ -235,10 +237,7 @@ class _HomePageState extends State<HomePage> {
             builder: (_) => ExibeFretePage(frete: frete),
           ),
         );
-
-        if (atualizado == true) {
-          carregar();
-        }
+        if (atualizado == true) carregar();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -269,10 +268,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: Text(
                     frete.statusFrete,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -287,214 +283,10 @@ class _HomePageState extends State<HomePage> {
                 Expanded(child: _linhaValor('Aberto', frete.valorFaltante)),
               ],
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(child: _linhaValor('Despesas', despesas)),
-                Expanded(child: _linhaValor('Líquido', valorLiquido)),
-                const Expanded(child: SizedBox()),
-              ],
-            ),
-            if ((frete.motivoRejeicao ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Motivo: ${frete.motivoRejeicao}',
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ],
-            const SizedBox(height: 12),
-            _acoesFrete(frete),
           ],
         ),
       ),
     );
-  }
-
-  Widget _acoesFrete(Frete frete) {
-    if (frete.statusFrete == 'Pendente') {
-      return Row(
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () async {
-                final atualizado = Frete(
-                  id: frete.id,
-                  empresa: frete.empresa,
-                  responsavel: frete.responsavel,
-                  documento: frete.documento,
-                  telefone: frete.telefone,
-                  origem: frete.origem,
-                  destino: frete.destino,
-                  valorFrete: frete.valorFrete,
-                  valorPago: frete.valorPago,
-                  valorFaltante: frete.valorFaltante,
-                  statusPagamento: frete.statusPagamento,
-                  statusFrete: 'Coletado',
-                  dataColeta: DateTime.now().toIso8601String(),
-                  dataEntrega: frete.dataEntrega,
-                  motivoRejeicao: frete.motivoRejeicao,
-                );
-                await database.updateFrete(atualizado);
-                carregar();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              child: const Text('Confirmar Coleta'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () => _rejeitarComMotivo(frete),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Rejeitar'),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (frete.statusFrete == 'Coletado') {
-      return Row(
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () async {
-                final atualizado = Frete(
-                  id: frete.id,
-                  empresa: frete.empresa,
-                  responsavel: frete.responsavel,
-                  documento: frete.documento,
-                  telefone: frete.telefone,
-                  origem: frete.origem,
-                  destino: frete.destino,
-                  valorFrete: frete.valorFrete,
-                  valorPago: frete.valorPago,
-                  valorFaltante: frete.valorFaltante,
-                  statusPagamento: frete.statusPagamento,
-                  statusFrete: 'Entregue',
-                  dataColeta: frete.dataColeta,
-                  dataEntrega: DateTime.now().toIso8601String(),
-                  motivoRejeicao: frete.motivoRejeicao,
-                );
-                await database.updateFrete(atualizado);
-                carregar();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-              child: const Text('Confirmar Entrega'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () => _rejeitarComMotivo(frete),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Rejeitar'),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (frete.statusFrete == 'Entregue') {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            disabledBackgroundColor: Colors.green,
-          ),
-          child: const Text('Entregue'),
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red,
-          disabledBackgroundColor: Colors.red,
-        ),
-        child: const Text('Rejeitado'),
-      ),
-    );
-  }
-
-  Future<void> _rejeitarComMotivo(Frete frete) async {
-    final motivoController = TextEditingController();
-    bool podeConfirmar = false;
-
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Rejeitar frete'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Informe o motivo da rejeição (obrigatório).'),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: motivoController,
-                    maxLines: 3,
-                    onChanged: (v) {
-                      setStateDialog(() {
-                        podeConfirmar = v.trim().isNotEmpty;
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Motivo',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: podeConfirmar ? () => Navigator.pop(context, true) : null,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child: const Text('Rejeitar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (confirmado != true) return;
-
-    final motivo = motivoController.text.trim();
-    if (motivo.isEmpty) return;
-
-    final atualizado = Frete(
-      id: frete.id,
-      empresa: frete.empresa,
-      responsavel: frete.responsavel,
-      documento: frete.documento,
-      telefone: frete.telefone,
-      origem: frete.origem,
-      destino: frete.destino,
-      valorFrete: frete.valorFrete,
-      valorPago: frete.valorPago,
-      valorFaltante: frete.valorFaltante,
-      statusPagamento: frete.statusPagamento,
-      statusFrete: 'Rejeitado',
-      dataColeta: frete.dataColeta,
-      dataEntrega: frete.dataEntrega,
-      motivoRejeicao: motivo,
-    );
-
-    await database.updateFrete(atualizado);
-    carregar();
   }
 
   Color _corStatusFrete(String status) {
@@ -521,6 +313,110 @@ class _HomePageState extends State<HomePage> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       ],
+    );
+  }
+}
+
+class CardAcaoPremium extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const CardAcaoPremium({
+    super.key,
+    required this.onTap,
+  });
+
+  @override
+  State<CardAcaoPremium> createState() => _CardAcaoPremiumState();
+}
+
+class _CardAcaoPremiumState extends State<CardAcaoPremium>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controlador = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  late final Animation<double> _escala =
+      Tween<double>(begin: 1.0, end: 1.03).animate(
+    CurvedAnimation(parent: _controlador, curve: Curves.easeInOut),
+  );
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _escala,
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 86,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.deepPurple.shade700,
+                Colors.indigo.shade600,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+                color: Colors.black.withOpacity(0.18),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  const Icon(
+                    Icons.workspace_premium,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'VIP',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Premium',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
