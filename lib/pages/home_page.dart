@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:gerenciasallex/main.dart';
+import 'package:gerenciasallex/pages/relatorio_page.dart';
 import '../database/frete_database.dart';
 import '../models/frete.dart';
 import '../pages/exibefrete.dart';
 import '../pages/premium.dart';
-import 'relatorio_page.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback onAddFrete;
@@ -45,10 +46,19 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  int get totalPendentes =>
-      fretes.where((f) => f.statusFrete == 'Pendente').length;
-
+  int get totalPendentes => fretes.where((f) => f.statusFrete == 'Pendente').length;
   double get totalFinanceiro => fretes.fold(0, (s, f) => s + f.valorPago);
+
+  List<BoxShadow> _sombraPadrao(BuildContext context) {
+    final escuro = Theme.of(context).brightness == Brightness.dark;
+    return [
+      BoxShadow(
+        color: escuro ? Colors.black.withOpacity(0.35) : Colors.black12,
+        blurRadius: escuro ? 10 : 6,
+        offset: const Offset(0, 6),
+      ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,10 +93,7 @@ class _HomePageState extends State<HomePage> {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         SizedBox(height: 4),
-        Text(
-          'Resumo dos seus fretes',
-          style: TextStyle(color: Colors.grey),
-        ),
+        Text('Resumo dos seus fretes', style: TextStyle(color: Colors.grey)),
       ],
     );
   }
@@ -126,19 +133,19 @@ class _HomePageState extends State<HomePage> {
     required String valor,
     required IconData icone,
   }) {
+    final corPrimaria = Theme.of(context).colorScheme.primary;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 6),
-        ],
+        boxShadow: _sombraPadrao(context),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icone, color: Colors.blue, size: 28),
+          Icon(icone, color: corPrimaria, size: 28),
           const SizedBox(height: 10),
           Text(titulo, style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 4),
@@ -156,17 +163,17 @@ class _HomePageState extends State<HomePage> {
       children: [
         Expanded(
           child: _cardAcao(
-        titulo: 'Relatorio',
-        icone: Icons.add_chart_rounded,
-        onTap: () {
-        Navigator.push(
-        context,
-        MaterialPageRoute(
-        builder: (_) => const RelatorioPage(),
-      ),
-    );
-  },
-),
+            titulo: 'Relatório',
+            icone: Icons.bar_chart,
+            onTap:(){
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const RelatorioPage(),
+              ),
+            );
+            },
+          ),
         ),
         const SizedBox(width: 15),
         Expanded(
@@ -198,6 +205,8 @@ class _HomePageState extends State<HomePage> {
     required IconData icone,
     required VoidCallback onTap,
   }) {
+    final corPrimaria = Theme.of(context).colorScheme.primary;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -205,16 +214,14 @@ class _HomePageState extends State<HomePage> {
         height: 86,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 6),
-          ],
+          boxShadow: _sombraPadrao(context),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icone, color: Colors.blue, size: 28),
+            Icon(icone, color: corPrimaria, size: 28),
             const SizedBox(height: 8),
             Text(
               titulo,
@@ -255,11 +262,9 @@ class _HomePageState extends State<HomePage> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 6),
-          ],
+          boxShadow: _sombraPadrao(context),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,7 +404,7 @@ class _CardAcaoPremiumState extends State<CardAcaoPremium> with SingleTickerProv
               BoxShadow(
                 blurRadius: 14,
                 offset: const Offset(0, 6),
-                color: Colors.black.withOpacity(0.18),
+                color: Colors.black.withOpacity(0.25),
               ),
             ],
           ),

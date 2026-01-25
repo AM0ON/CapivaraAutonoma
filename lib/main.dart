@@ -29,20 +29,33 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final temaClaro = ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorSchemeSeed: Colors.blue,
+      scaffoldBackgroundColor: const Color(0xFFF6F6FA),
+      cardColor: Colors.white,
+      appBarTheme: const AppBarTheme(
+        surfaceTintColor: Colors.transparent,
+      ),
+    );
+
+    final temaEscuro = ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorSchemeSeed: Colors.blue,
+      scaffoldBackgroundColor: const Color(0xFF0E1116),
+      cardColor: const Color(0xFF151A22),
+      appBarTheme: const AppBarTheme(
+        surfaceTintColor: Colors.transparent,
+      ),
+    );
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: modoTema,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        colorSchemeSeed: Colors.blue,
-        scaffoldBackgroundColor: const Color(0xFFF6F6FA),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorSchemeSeed: Colors.blue,
-      ),
+      theme: temaClaro,
+      darkTheme: temaEscuro,
       home: MainPage(
         modoTema: modoTema,
         onAlterarTema: alternarTema,
@@ -92,10 +105,6 @@ class _MainPageState extends State<MainPage> {
     return 'Relatório';
   }
 
-  void irPara(int novoIndex) {
-    setState(() => index = novoIndex);
-  }
-
   Future<void> abrirMinhaConta() async {
     await Navigator.push(
       context,
@@ -130,6 +139,7 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     final escuro = widget.modoTema == ThemeMode.dark;
+    final corPrimaria = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       appBar: AppBar(
@@ -145,13 +155,13 @@ class _MainPageState extends State<MainPage> {
                   children: [
                     CircleAvatar(
                       radius: 26,
-                      backgroundColor: Colors.blue.withOpacity(0.15),
+                      backgroundColor: corPrimaria.withOpacity(0.15),
                       backgroundImage:
                           (fotoPerfilUrl != null && fotoPerfilUrl!.isNotEmpty)
                               ? NetworkImage(fotoPerfilUrl!)
                               : null,
                       child: (fotoPerfilUrl == null || fotoPerfilUrl!.isEmpty)
-                          ? const Icon(Icons.person, color: Colors.blue)
+                          ? Icon(Icons.person, color: corPrimaria)
                           : null,
                     ),
                     const SizedBox(width: 12),
@@ -188,7 +198,6 @@ class _MainPageState extends State<MainPage> {
                 ),
               ),
               const Divider(height: 1),
-
               ListTile(
                 leading: const Icon(Icons.person_outline),
                 title: const Text('Minha Conta'),
@@ -213,10 +222,8 @@ class _MainPageState extends State<MainPage> {
                   abrirPremium();
                 },
               ),
-
               const Spacer(),
               const Divider(height: 1),
-
               Padding(
                 padding: const EdgeInsets.fromLTRB(6, 6, 6, 10),
                 child: SwitchListTile(

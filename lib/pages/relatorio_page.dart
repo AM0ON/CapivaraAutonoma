@@ -22,6 +22,17 @@ class _RelatorioPageState extends State<RelatorioPage> {
 
   final _dataFormatada = DateFormat('dd/MM/yyyy');
 
+  List<BoxShadow> _sombraPadrao(BuildContext context) {
+    final escuro = Theme.of(context).brightness == Brightness.dark;
+    return [
+      BoxShadow(
+        color: escuro ? Colors.black.withOpacity(0.35) : Colors.black12,
+        blurRadius: escuro ? 10 : 6,
+        offset: const Offset(0, 6),
+      ),
+    ];
+  }
+
   Future<void> _selecionarInicio() async {
     final agora = DateTime.now();
     final selecionado = await showDatePicker(
@@ -67,8 +78,10 @@ class _RelatorioPageState extends State<RelatorioPage> {
   }
 
   DateTime? _parseIso(String? value) {
-    if (value == null || value.trim().isEmpty) return null;
-    return DateTime.tryParse(value);
+    if (value == null) return null;
+    final v = value.trim();
+    if (v.isEmpty) return null;
+    return DateTime.tryParse(v);
   }
 
   bool _freteDentroDoPeriodo(Frete f) {
@@ -86,6 +99,25 @@ class _RelatorioPageState extends State<RelatorioPage> {
     if (fim != null && dataDia.isAfter(fim!)) return false;
 
     return true;
+  }
+
+  Widget _linhaInfo(String texto) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle, size: 16, color: Colors.green),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              texto,
+              style: const TextStyle(height: 1.3),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _gerarPDF() async {
@@ -120,25 +152,13 @@ class _RelatorioPageState extends State<RelatorioPage> {
             pw.SizedBox(height: 6),
             pw.Text(periodoTexto, style: const pw.TextStyle(fontSize: 10)),
             pw.SizedBox(height: 6),
-            pw.Text('Itens: ${filtrados.length}',
-                style: const pw.TextStyle(fontSize: 10)),
+            pw.Text('Itens: ${filtrados.length}', style: const pw.TextStyle(fontSize: 10)),
             pw.SizedBox(height: 16),
             pw.Table.fromTextArray(
-              headers: const [
-                'Empresa',
-                'Rota',
-                'Valor',
-                'Pago',
-                'Aberto',
-                'Status',
-              ],
-              headerStyle: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 10,
-              ),
+              headers: const ['Empresa', 'Rota', 'Valor', 'Pago', 'Aberto', 'Status'],
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
               cellStyle: const pw.TextStyle(fontSize: 9),
-              cellPadding:
-                  const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+              cellPadding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
               data: filtrados.map((Frete f) {
                 totalRecebido += f.valorPago;
                 return [
@@ -156,10 +176,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
               alignment: pw.Alignment.centerRight,
               child: pw.Text(
                 'Total recebido: R\$ ${totalRecebido.toStringAsFixed(2)}',
-                style: pw.TextStyle(
-                  fontSize: 12,
-                  fontWeight: pw.FontWeight.bold,
-                ),
+                style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
               ),
             ),
           ],
@@ -170,25 +187,6 @@ class _RelatorioPageState extends State<RelatorioPage> {
     } finally {
       if (mounted) setState(() => _gerando = false);
     }
-  }
-
-  Widget _linhaInfo(String texto) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Icon(Icons.check_circle, size: 16, color: Colors.green),
-          SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              '',
-              style: TextStyle(height: 1.3),
-            ),
-          ),
-        ],
-      ),
-    ).copyWithText(texto);
   }
 
   @override
@@ -215,9 +213,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(18),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black12, blurRadius: 6),
-                ],
+                boxShadow: _sombraPadrao(context),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,10 +224,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
                       SizedBox(width: 6),
                       Text(
                         'Sobre este relatório',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ],
                   ),
@@ -244,15 +237,11 @@ class _RelatorioPageState extends State<RelatorioPage> {
                   ),
                   const SizedBox(height: 10),
                   _linhaInfo('Valores totais, pagos e em aberto'),
-                  _linhaInfo(
-                      'Status de cada frete (pendente, coletado, entregue ou rejeitado)'),
+                  _linhaInfo('Status de cada frete (pendente, coletado, entregue ou rejeitado)'),
                   _linhaInfo('Rotas de origem e destino'),
                   _linhaInfo('Filtro opcional por período de datas'),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Período (opcional)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Período (opcional)', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -260,9 +249,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
                         child: OutlinedButton.icon(
                           onPressed: _selecionarInicio,
                           icon: const Icon(Icons.event),
-                          label: Text(inicio == null
-                              ? 'Início'
-                              : _dataFormatada.format(inicio!)),
+                          label: Text(inicio == null ? 'Início' : _dataFormatada.format(inicio!)),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -270,9 +257,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
                         child: OutlinedButton.icon(
                           onPressed: _selecionarFim,
                           icon: const Icon(Icons.event_available),
-                          label: Text(fim == null
-                              ? 'Fim'
-                              : _dataFormatada.format(fim!)),
+                          label: Text(fim == null ? 'Fim' : _dataFormatada.format(fim!)),
                         ),
                       ),
                     ],
@@ -284,11 +269,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
                         child: Text(
                           textoPeriodo(),
                           style: TextStyle(
-                            color: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.color
-                                ?.withOpacity(0.75),
+                            color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.75),
                           ),
                         ),
                       ),
@@ -306,8 +287,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
                     child: ElevatedButton.icon(
                       onPressed: _gerando ? null : _gerarPDF,
                       icon: const Icon(Icons.picture_as_pdf),
-                      label: Text(
-                          _gerando ? 'Gerando PDF...' : 'Gerar Relatório PDF'),
+                      label: Text(_gerando ? 'Gerando PDF...' : 'Gerar Relatório PDF'),
                     ),
                   ),
                 ],
@@ -317,31 +297,5 @@ class _RelatorioPageState extends State<RelatorioPage> {
         ),
       ),
     );
-  }
-}
-
-extension on Widget {
-  Widget copyWithText(String texto) {
-    if (this is Padding) {
-      final p = this as Padding;
-      final row = p.child as Row;
-      return Padding(
-        padding: p.padding,
-        child: Row(
-          crossAxisAlignment: row.crossAxisAlignment,
-          children: [
-            row.children[0],
-            row.children[1],
-            Expanded(
-              child: Text(
-                texto,
-                style: const TextStyle(height: 1.3),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return this;
   }
 }

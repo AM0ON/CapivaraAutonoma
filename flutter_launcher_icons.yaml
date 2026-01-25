@@ -1,5 +1,5 @@
 flutter_icons:
   android: true
   ios: true
-  image_path: "lib/utils/assets/app_icon.png"
+  image_path: "android/assets/icons/icone_app.png"
   min_sdk_android: 21
