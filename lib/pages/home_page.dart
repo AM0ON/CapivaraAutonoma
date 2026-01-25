@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:gerenciasallex/main.dart';
 import 'package:gerenciasallex/pages/relatorio_page.dart';
 import '../database/frete_database.dart';
 import '../models/frete.dart';
