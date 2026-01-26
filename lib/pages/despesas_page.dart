@@ -22,7 +22,7 @@ class _DespesasPageState extends State<DespesasPage> {
 
   final _formatador = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
-  List<Map<String, dynamic>> despesas = [];
+  List<Despesa> despesas = [];
   bool carregando = true;
 
   @override
@@ -41,7 +41,7 @@ class _DespesasPageState extends State<DespesasPage> {
       return;
     }
 
-    final lista = await database.listarDespesasDoFrete(id);
+    final lista = await database.getDespesas(id);
 
     setState(() {
       despesas = lista;
@@ -70,30 +70,18 @@ class _DespesasPageState extends State<DespesasPage> {
     final id = widget.frete.id;
     if (id == null) return;
 
-    final totalDespesas = await database.totalDespesasDoFrete(id);
-
+    // CORREÇÃO AQUI: As despesas não entram mais no cálculo do 'aberto'
+    // O 'aberto' é apenas o que a empresa deve (Total - Pago)
+    
     final total = widget.frete.valorFrete;
     final pago = widget.frete.valorPago;
 
-    var aberto = total - pago - totalDespesas;
+    var aberto = total - pago; // Removido: "- totalDespesas"
     if (aberto < 0) aberto = 0;
 
-    final atualizado = Frete(
-      id: widget.frete.id,
-      empresa: widget.frete.empresa,
-      responsavel: widget.frete.responsavel,
-      documento: widget.frete.documento,
-      telefone: widget.frete.telefone,
-      origem: widget.frete.origem,
-      destino: widget.frete.destino,
-      valorFrete: widget.frete.valorFrete,
-      valorPago: widget.frete.valorPago,
+    final atualizado = widget.frete.copyWith(
       valorFaltante: aberto,
       statusPagamento: _statusPagamento(total, pago, aberto),
-      statusFrete: widget.frete.statusFrete,
-      dataColeta: widget.frete.dataColeta,
-      dataEntrega: widget.frete.dataEntrega,
-      motivoRejeicao: widget.frete.motivoRejeicao,
     );
 
     await database.updateFrete(atualizado);
@@ -175,7 +163,7 @@ class _DespesasPageState extends State<DespesasPage> {
     final valorDespesa = _parseReais(valor.text);
     if (valorDespesa <= 0) return;
 
-    await database.inserirDespesa(
+    final novaDespesa = Despesa(
       freteId: id,
       tipo: tipo.value,
       valor: valorDespesa,
@@ -183,112 +171,120 @@ class _DespesasPageState extends State<DespesasPage> {
       criadoEm: DateTime.now().toIso8601String(),
     );
 
+    await database.inserirDespesa(novaDespesa);
+
     await _recalcularEAtualizarFrete();
     await _carregar();
+    
     if (!mounted) return;
-    Navigator.pop(context, true);
   }
 
   Future<void> _removerDespesa(int idDespesa) async {
-    await database.removerDespesa(idDespesa);
+    await database.deleteDespesa(idDespesa);
     await _recalcularEAtualizarFrete();
     await _carregar();
-    if (!mounted) return;
-    Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
     final id = widget.frete.id;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Despesas'),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: id == null ? null : _adicionarDespesa,
-        child: const Icon(Icons.add),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: carregando
-            ? const Center(child: CircularProgressIndicator())
-            : (despesas.isEmpty
-                ? Center(
-                    child: Text(
-                      'Nenhuma despesa cadastrada.',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: despesas.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final d = despesas[index];
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, true);
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Despesas'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: id == null ? null : _adicionarDespesa,
+          child: const Icon(Icons.add),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: carregando
+              ? const Center(child: CircularProgressIndicator())
+              : (despesas.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Nenhuma despesa cadastrada.',
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: despesas.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final d = despesas[index];
 
-                      final idDespesa = (d['id'] as int?) ?? 0;
-                      final tipo = (d['tipo'] ?? '').toString();
-                      final obs = (d['observacao'] ?? '').toString().trim();
+                        final idDespesa = d.id ?? 0;
+                        final tipo = d.tipo;
+                        final obs = (d.observacao ?? '').trim();
+                        final valor = d.valor;
 
-                      final v = d['valor'];
-                      final valor = v is num ? v.toDouble() : double.tryParse('$v') ?? 0.0;
-
-                      return Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const [
-                            BoxShadow(color: Colors.black12, blurRadius: 6),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.blue.withOpacity(0.1),
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black12, blurRadius: 6),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.blue.withOpacity(0.1),
+                                ),
+                                child: const Icon(Icons.receipt_long, color: Colors.blue),
                               ),
-                              child: const Icon(Icons.receipt_long, color: Colors.blue),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    tipo,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      tipo,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _formatador.format(valor),
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                  if (obs.isNotEmpty) ...[
                                     const SizedBox(height: 4),
                                     Text(
-                                      obs,
-                                      style: const TextStyle(color: Colors.grey),
+                                      _formatador.format(valor),
+                                      style: const TextStyle(fontWeight: FontWeight.w700),
                                     ),
+                                    if (obs.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        obs,
+                                        style: const TextStyle(color: Colors.grey),
+                                      ),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
-                            ),
-                            IconButton(
-                              onPressed: () => _removerDespesa(idDespesa),
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  )),
+                              IconButton(
+                                onPressed: () => _removerDespesa(idDespesa),
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    )),
+        ),
       ),
     );
   }

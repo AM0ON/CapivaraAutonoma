@@ -112,3 +112,44 @@ class Frete {
     );
   }
 }
+
+// ADICIONADO: Classe Despesa necessária para o DB e ExibeFrete
+class Despesa {
+  final int? id;
+  final int freteId;
+  final String tipo;
+  final double valor;
+  final String? observacao;
+  final String criadoEm;
+
+  Despesa({
+    this.id,
+    required this.freteId,
+    required this.tipo,
+    required this.valor,
+    this.observacao,
+    required this.criadoEm,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'freteId': freteId,
+      'tipo': tipo,
+      'valor': valor,
+      'observacao': observacao,
+      'criadoEm': criadoEm,
+    };
+  }
+
+  factory Despesa.fromMap(Map<String, dynamic> map) {
+    return Despesa(
+      id: map['id'],
+      freteId: map['freteId'],
+      tipo: map['tipo'],
+      valor: (map['valor'] as num).toDouble(),
+      observacao: map['observacao'],
+      criadoEm: map['criadoEm'],
+    );
+  }
+}

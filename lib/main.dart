@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'pages/home_page.dart';
 import 'pages/novo_frete_page.dart';
+import 'pages/relatorio_page.dart';
+import 'pages/premium.dart';
 import 'pages/minha_conta_page.dart';
 import 'pages/configuracoes_page.dart';
-import 'pages/premium.dart';
 
 void main() {
   runApp(const MyApp());
@@ -79,6 +80,9 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int index = 0;
+  
+  // 1. Instancia o controlador aqui
+  final _homeController = HomeRefreshController();
 
   String? fotoPerfilUrl;
   String nomeUsuario = 'Visitante';
@@ -89,17 +93,21 @@ class _MainPageState extends State<MainPage> {
       onAddFrete: () {
         setState(() => index = 1);
       },
+      controller: _homeController, // 2. Passa para a Home
     ),
     NovoFretePage(
       onSaved: () {
+        _homeController.refresh(); // 3. Dispara a atualização
         setState(() => index = 0);
       },
     ),
+    const RelatorioPage(),
   ];
 
   String get title {
     if (index == 0) return 'Fretes';
     if (index == 1) return 'Novo Frete';
+    if (index == 2) return 'Relatório';
     return 'Capivara Loka';
   }
 

@@ -2,15 +2,25 @@ import 'package:flutter/material.dart';
 import '../database/frete_database.dart';
 import '../models/frete.dart';
 import 'relatorio_page.dart';
+import 'driver_id_page.dart';
 import 'exibefrete.dart';
 import 'premium.dart';
 
+// Controlador para atualizar a Home
+class HomeRefreshController extends ChangeNotifier {
+  void refresh() {
+    notifyListeners();
+  }
+}
+
 class HomePage extends StatefulWidget {
   final VoidCallback onAddFrete;
+  final HomeRefreshController? controller;
 
   const HomePage({
     super.key,
     required this.onAddFrete,
+    this.controller,
   });
 
   @override
@@ -26,7 +36,14 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    widget.controller?.addListener(carregar);
     carregar();
+  }
+
+  @override
+  void dispose() {
+    widget.controller?.removeListener(carregar);
+    super.dispose();
   }
 
   Future<void> carregar() async {
@@ -39,13 +56,16 @@ class _HomePageState extends State<HomePage> {
 
     final totais = await database.getTotaisDespesasPorFrete(ids);
 
+    if (!mounted) return;
+
     setState(() {
       fretes = result;
       totalDespesasPorFrete = totais;
     });
   }
 
-  int get totalPendentes => fretes.where((f) => f.statusFrete == 'Pendente').length;
+  int get totalPendentes =>
+      fretes.where((f) => f.statusFrete == 'Pendente').length;
   double get totalFinanceiro => fretes.fold(0, (s, f) => s + f.valorPago);
 
   List<BoxShadow> _sombraPadrao(BuildContext context) {
@@ -76,7 +96,24 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             _cardsAcoes(),
             const SizedBox(height: 20),
-            ...fretes.map(_freteCard),
+            if (fretes.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(30.0),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.local_shipping_outlined, size: 60, color: Colors.grey.withOpacity(0.5)),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Nenhum frete cadastrado',
+                        style: TextStyle(color: Colors.grey.withOpacity(0.8)),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ...fretes.map(_freteCard),
           ],
         ),
       ),
@@ -164,13 +201,13 @@ class _HomePageState extends State<HomePage> {
           child: _cardAcao(
             titulo: 'Relatório',
             icone: Icons.bar_chart,
-            onTap:(){
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const RelatorioPage(),
-              ),
-            );
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RelatorioPage(),
+                ),
+              );
             },
           ),
         ),
@@ -190,9 +227,16 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(width: 15),
         Expanded(
           child: _cardAcao(
-            titulo: 'Documentos', // Alterado
-            icone: Icons.folder,  // Alterado para ícone de pasta
-            onTap: () {},
+            titulo: 'Documentos',
+            icone: Icons.badge,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const DriverIdPage(),
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -240,7 +284,11 @@ class _HomePageState extends State<HomePage> {
     final despesas = (id != null) ? (totalDespesasPorFrete[id] ?? 0.0) : 0.0;
 
     final valorBruto = frete.valorFrete;
-    var valorLiquido = valorBruto - despesas;
+    
+    // CORREÇÃO: Líquido agora é calculado sobre o valor faltante (Em Aberto)
+    var valorLiquido = frete.valorFaltante - despesas;
+    
+    // Opcional: Se quiser permitir negativo, remova a linha abaixo
     if (valorLiquido < 0) valorLiquido = 0;
 
     return InkWell(
@@ -277,7 +325,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: corStatus,
                     borderRadius: BorderRadius.circular(12),
@@ -306,6 +355,7 @@ class _HomePageState extends State<HomePage> {
             Row(
               children: [
                 Expanded(child: _linhaValor('Despesas', despesas)),
+                // Aqui exibimos o novo cálculo
                 Expanded(child: _linhaValor('Líquido', valorLiquido)),
                 const Expanded(child: SizedBox()),
               ],
@@ -363,15 +413,23 @@ class CardAcaoPremium extends StatefulWidget {
   State<CardAcaoPremium> createState() => _CardAcaoPremiumState();
 }
 
-class _CardAcaoPremiumState extends State<CardAcaoPremium> with SingleTickerProviderStateMixin {
-  late final AnimationController _controlador = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
+class _CardAcaoPremiumState extends State<CardAcaoPremium>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controlador;
+  late final Animation<double> _escala;
 
-  late final Animation<double> _escala = Tween<double>(begin: 1.0, end: 1.03).animate(
-    CurvedAnimation(parent: _controlador, curve: Curves.easeInOut),
-  );
+  @override
+  void initState() {
+    super.initState();
+    _controlador = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+
+    _escala = Tween<double>(begin: 1.0, end: 1.03).animate(
+      CurvedAnimation(parent: _controlador, curve: Curves.easeInOut),
+    );
+  }
 
   @override
   void dispose() {
@@ -419,7 +477,8 @@ class _CardAcaoPremiumState extends State<CardAcaoPremium> with SingleTickerProv
                     size: 30,
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.amber,
                       borderRadius: BorderRadius.circular(8),

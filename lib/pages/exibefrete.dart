@@ -27,7 +27,7 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
 
   bool carregandoDespesas = true;
   double totalDespesas = 0.0;
-  List<Map<String, dynamic>> despesas = [];
+  List<Despesa> despesas = [];
 
   @override
   void initState() {
@@ -48,7 +48,7 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
       return;
     }
 
-    final lista = await database.listarDespesasDoFrete(id);
+    final lista = await database.getDespesas(id);
     final total = await database.totalDespesasDoFrete(id);
 
     if (!mounted) return;
@@ -103,7 +103,8 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
   Widget build(BuildContext context) {
     final motivo = (frete.motivoRejeicao ?? '').trim();
 
-    var saldoLiquido = frete.valorFrete - totalDespesas;
+    // CORREÇÃO: Líquido = Em Aberto - Despesas
+    var saldoLiquido = frete.valorFaltante - totalDespesas;
     if (saldoLiquido < 0) saldoLiquido = 0;
 
     return WillPopScope(
@@ -235,12 +236,10 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
     );
   }
 
-  Widget _itemDespesa(Map<String, dynamic> d) {
-    final tipo = (d['tipo'] ?? '').toString();
-    final obs = (d['observacao'] ?? '').toString().trim();
-
-    final v = d['valor'];
-    final valor = v is num ? v.toDouble() : double.tryParse('$v') ?? 0.0;
+  Widget _itemDespesa(Despesa d) {
+    final tipo = d.tipo;
+    final obs = (d.observacao ?? '').trim();
+    final valor = d.valor;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),

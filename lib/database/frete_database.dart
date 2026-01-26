@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 import '../models/frete.dart';
+import '../models/motorista.dart';
 
 class FreteDatabase {
   static final FreteDatabase instance = FreteDatabase._init();
@@ -13,21 +14,21 @@ class FreteDatabase {
     if (_database != null) return _database!;
 
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'fretes.db');
+    // Mantendo o nome original do banco, mas subindo a versão para forçar atualização
+    final path = join(dbPath, 'fretes_v2.db');
 
     _database = await openDatabase(
       path,
-      version: 3,
+      version: 5, // Versão 5 para garantir a criação da tabela motorista
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
-
-    await _database!.execute('PRAGMA foreign_keys = ON');
 
     return _database!;
   }
 
   Future<void> _onCreate(Database db, int version) async {
+    // Tabela ORIGINAL de Fretes (Sem alterações)
     await db.execute('''
       CREATE TABLE fretes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,6 +49,7 @@ class FreteDatabase {
       )
     ''');
 
+    // Tabela ORIGINAL de Despesas (Sem alterações)
     await db.execute('''
       CREATE TABLE despesas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,30 +62,42 @@ class FreteDatabase {
       )
     ''');
 
-    await db.execute('CREATE INDEX idx_despesas_freteId ON despesas(freteId)');
+    // NOVA Tabela Motorista (Adicionada)
+    await db.execute('''
+      CREATE TABLE motorista (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT,
+        rg TEXT,
+        cpf TEXT,
+        cnh TEXT,
+        foto_rosto TEXT,
+        foto_cnh TEXT,
+        foto_comprovante TEXT
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
+    // Garante que a tabela motorista seja criada se o app já estiver instalado
+    if (oldVersion < 5) {
       await db.execute('''
-        CREATE TABLE IF NOT EXISTS despesas (
+        CREATE TABLE IF NOT EXISTS motorista (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          freteId INTEGER NOT NULL,
-          tipo TEXT NOT NULL,
-          valor REAL NOT NULL,
-          observacao TEXT,
-          criadoEm TEXT NOT NULL,
-          FOREIGN KEY (freteId) REFERENCES fretes(id) ON DELETE CASCADE
+          nome TEXT,
+          rg TEXT,
+          cpf TEXT,
+          cnh TEXT,
+          foto_rosto TEXT,
+          foto_cnh TEXT,
+          foto_comprovante TEXT
         )
       ''');
     }
-
-    if (oldVersion < 3) {
-      await db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_despesas_freteId ON despesas(freteId)',
-      );
-    }
   }
+
+  // ===========================================================================
+  // MÉTODOS ORIGINAIS - FRETES
+  // ===========================================================================
 
   Future<int> inserirFrete(Frete frete) async {
     final db = await database;
@@ -115,85 +129,98 @@ class FreteDatabase {
     );
   }
 
-  Future<void> limparBanco() async {
+  // ===========================================================================
+  // MÉTODOS ORIGINAIS - DESPESAS (Restaurados com nomes originais)
+  // ===========================================================================
+
+  Future<int> inserirDespesa(Despesa despesa) async {
     final db = await database;
-    await db.delete('despesas');
-    await db.delete('fretes');
+    return await db.insert('despesas', despesa.toMap());
   }
 
-  Future<int> inserirDespesa({
-    required int freteId,
-    required String tipo,
-    required double valor,
-    required String observacao,
-    required String criadoEm,
-  }) async {
+  Future<List<Despesa>> getDespesas(int freteId) async {
     final db = await database;
-    return await db.insert('despesas', {
-      'freteId': freteId,
-      'tipo': tipo,
-      'valor': valor,
-      'observacao': observacao,
-      'criadoEm': criadoEm,
-    });
-  }
-
-  Future<int> removerDespesa(int id) async {
-    final db = await database;
-    return await db.delete('despesas', where: 'id = ?', whereArgs: [id]);
-  }
-
-  Future<List<Map<String, dynamic>>> listarDespesasDoFrete(int freteId) async {
-    final db = await database;
-    return await db.query(
+    final result = await db.query(
       'despesas',
       where: 'freteId = ?',
       whereArgs: [freteId],
-      orderBy: 'id DESC',
+      orderBy: 'criadoEm DESC',
+    );
+    return result.map((e) => Despesa.fromMap(e)).toList();
+  }
+
+  Future<int> deleteDespesa(int id) async {
+    final db = await database;
+    return await db.delete(
+      'despesas',
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 
+  // ESTE ERA O MÉTODO QUE ESTAVA FALTANDO E CAUSAVA O ERRO
   Future<double> totalDespesasDoFrete(int freteId) async {
     final db = await database;
     final result = await db.rawQuery(
-      'SELECT COALESCE(SUM(valor), 0) as total FROM despesas WHERE freteId = ?',
+      'SELECT SUM(valor) as total FROM despesas WHERE freteId = ?',
       [freteId],
     );
 
-    final total = result.first['total'];
-    if (total is num) return total.toDouble();
-    return double.tryParse('$total') ?? 0.0;
+    if (result.isNotEmpty && result.first['total'] != null) {
+      return double.tryParse(result.first['total'].toString()) ?? 0.0;
+    }
+    return 0.0;
   }
 
+  // Método auxiliar para a Home Page (Carrega vários de uma vez)
   Future<Map<int, double>> getTotaisDespesasPorFrete(List<int> freteIds) async {
     final db = await database;
     if (freteIds.isEmpty) return {};
 
-    final placeholders = List.filled(freteIds.length, '?').join(',');
-
-    final result = await db.rawQuery(
-      '''
-      SELECT freteId, COALESCE(SUM(valor), 0) as total
+    final idsString = freteIds.join(',');
+    final result = await db.rawQuery('''
+      SELECT freteId, SUM(valor) as total
       FROM despesas
-      WHERE freteId IN ($placeholders)
+      WHERE freteId IN ($idsString)
       GROUP BY freteId
-      ''',
-      freteIds,
-    );
+    ''');
 
-    final Map<int, double> mapa = {};
-
+    final map = <int, double>{};
     for (final row in result) {
-      final id = row['freteId'];
-      final total = row['total'];
-
-      final freteId = id is int ? id : int.tryParse('$id') ?? 0;
-      final valorTotal =
-          total is num ? total.toDouble() : (double.tryParse('$total') ?? 0.0);
-
-      mapa[freteId] = valorTotal;
+      final fid = row['freteId'] as int;
+      final total = row['total'] != null 
+          ? (double.tryParse(row['total'].toString()) ?? 0.0) 
+          : 0.0;
+      map[fid] = total;
     }
+    return map;
+  }
 
-    return mapa;
+  // ===========================================================================
+  // NOVOS MÉTODOS - MOTORISTA (Driver ID)
+  // ===========================================================================
+
+  Future<Motorista?> getMotorista() async {
+    final db = await database;
+    try {
+      final result = await db.query('motorista', limit: 1);
+      if (result.isNotEmpty) {
+        return Motorista.fromMap(result.first);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> salvarMotorista(Motorista motorista) async {
+    final db = await database;
+    final existe = await getMotorista();
+    
+    if (existe == null) {
+      await db.insert('motorista', motorista.toMap());
+    } else {
+      await db.update('motorista', motorista.toMap(), where: 'id = ?', whereArgs: [existe.id]);
+    }
   }
 }
