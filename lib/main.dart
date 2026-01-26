@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'pages/home_page.dart';
 import 'pages/novo_frete_page.dart';
-import 'pages/relatorio_page.dart';
-import 'pages/premium.dart';
 import 'pages/minha_conta_page.dart';
 import 'pages/configuracoes_page.dart';
+import 'pages/premium.dart';
 
 void main() {
   runApp(const MyApp());
@@ -96,13 +95,12 @@ class _MainPageState extends State<MainPage> {
         setState(() => index = 0);
       },
     ),
-    const RelatorioPage(),
   ];
 
   String get title {
     if (index == 0) return 'Fretes';
     if (index == 1) return 'Novo Frete';
-    return 'Relatório';
+    return 'Capivara Loka';
   }
 
   Future<void> abrirMinhaConta() async {

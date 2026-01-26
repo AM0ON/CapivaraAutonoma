@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:gerenciasallex/pages/relatorio_page.dart';
 import '../database/frete_database.dart';
 import '../models/frete.dart';
-import '../pages/exibefrete.dart';
-import '../pages/premium.dart';
+import 'relatorio_page.dart';
+import 'exibefrete.dart';
+import 'premium.dart';
 
 class HomePage extends StatefulWidget {
   final VoidCallback onAddFrete;
@@ -190,8 +190,8 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(width: 15),
         Expanded(
           child: _cardAcao(
-            titulo: 'Texto Fiscal',
-            icone: Icons.description,
+            titulo: 'Documentos', // Alterado
+            icone: Icons.folder,  // Alterado para ícone de pasta
             onTap: () {},
           ),
         ),
