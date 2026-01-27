@@ -1,4 +1,6 @@
+import 'dart:io'; // Necessário para File
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Necessário para carregar o menu
 
 import 'pages/home_page.dart';
 import 'pages/novo_frete_page.dart';
@@ -81,28 +83,55 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int index = 0;
   
-  // 1. Instancia o controlador aqui
+  // Controlador para atualizar a Home quando um frete é salvo
   final _homeController = HomeRefreshController();
 
-  String? fotoPerfilUrl;
+  // Dados do Menu Lateral (Drawer)
   String nomeUsuario = 'Visitante';
   String emailUsuario = '';
+  File? fotoPerfilFile;
 
   late final List<Widget> pages = [
     HomePage(
       onAddFrete: () {
         setState(() => index = 1);
       },
-      controller: _homeController, // 2. Passa para a Home
+      controller: _homeController,
     ),
     NovoFretePage(
       onSaved: () {
-        _homeController.refresh(); // 3. Dispara a atualização
-        setState(() => index = 0);
+        _homeController.refresh(); // Atualiza a lista da Home
+        setState(() => index = 0); // Volta para a tela inicial
       },
     ),
     const RelatorioPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarPerfilMenu(); // Carrega os dados do Drawer ao iniciar
+  }
+
+  // Busca nome/foto salvos no SharedPreferences para exibir no Drawer
+  Future<void> _carregarPerfilMenu() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    
+    setState(() {
+      nomeUsuario = prefs.getString('perfil_nome') ?? 'Visitante';
+      if (nomeUsuario.isEmpty) nomeUsuario = 'Visitante';
+      
+      emailUsuario = prefs.getString('perfil_email') ?? '';
+      
+      final path = prefs.getString('perfil_foto');
+      if (path != null && path.isNotEmpty) {
+        fotoPerfilFile = File(path);
+      } else {
+        fotoPerfilFile = null;
+      }
+    });
+  }
 
   String get title {
     if (index == 0) return 'Fretes';
@@ -112,16 +141,18 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> abrirMinhaConta() async {
-    await Navigator.push(
+    // CORREÇÃO: Chamada sem parâmetros, pois a página carrega internamente
+    final atualizou = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MinhaContaPage(
-          nomeUsuario: nomeUsuario,
-          emailUsuario: emailUsuario,
-          fotoPerfilUrl: fotoPerfilUrl,
-        ),
+        builder: (_) => const MinhaContaPage(),
       ),
     );
+
+    // Se houve alteração no perfil, recarrega o menu lateral
+    if (atualizou == true) {
+      await _carregarPerfilMenu();
+    }
   }
 
   Future<void> abrirConfiguracoes() async {
@@ -162,11 +193,11 @@ class _MainPageState extends State<MainPage> {
                     CircleAvatar(
                       radius: 26,
                       backgroundColor: corPrimaria.withOpacity(0.15),
-                      backgroundImage:
-                          (fotoPerfilUrl != null && fotoPerfilUrl!.isNotEmpty)
-                              ? NetworkImage(fotoPerfilUrl!)
-                              : null,
-                      child: (fotoPerfilUrl == null || fotoPerfilUrl!.isEmpty)
+                      // Lógica de exibição da foto: Arquivo Local > Ícone Padrão
+                      backgroundImage: fotoPerfilFile != null 
+                          ? FileImage(fotoPerfilFile!) 
+                          : null,
+                      child: fotoPerfilFile == null
                           ? Icon(Icons.person, color: corPrimaria)
                           : null,
                     ),

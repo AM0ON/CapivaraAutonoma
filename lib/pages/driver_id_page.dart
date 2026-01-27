@@ -20,13 +20,13 @@ class _DriverIdPageState extends State<DriverIdPage> {
   final ImagePicker _picker = ImagePicker();
 
   bool _loading = true;
-  bool _editando = false; // Controla se mostra o formulário ou o resumo
+  bool _editando = false;
 
-  // Campos do formulário
   final _nomeController = TextEditingController();
   final _rgController = TextEditingController();
   final _cpfController = TextEditingController();
   final _cnhController = TextEditingController();
+  final _enderecoController = TextEditingController(); // Novo Controller
 
   File? _fotoRosto;
   File? _fotoCnh;
@@ -45,12 +45,12 @@ class _DriverIdPageState extends State<DriverIdPage> {
     final motorista = await _db.getMotorista();
 
     if (motorista != null) {
-      // Se já existe, preenche os campos e entra em modo visualização
       _motoristaSalvo = motorista;
       _nomeController.text = motorista.nome ?? '';
       _rgController.text = motorista.rg ?? '';
       _cpfController.text = motorista.cpf ?? '';
       _cnhController.text = motorista.cnh ?? '';
+      _enderecoController.text = motorista.endereco ?? '';
 
       if (motorista.fotoRosto != null) _fotoRosto = File(motorista.fotoRosto!);
       if (motorista.fotoCnh != null) _fotoCnh = File(motorista.fotoCnh!);
@@ -58,7 +58,6 @@ class _DriverIdPageState extends State<DriverIdPage> {
       
       _editando = false;
     } else {
-      // Se não existe, entra em modo de edição (formulário)
       _editando = true;
     }
 
@@ -72,18 +71,19 @@ class _DriverIdPageState extends State<DriverIdPage> {
     }
 
     final novoMotorista = Motorista(
-      id: _motoristaSalvo?.id, // Mantém ID se já existir para update
+      id: _motoristaSalvo?.id,
       nome: _nomeController.text,
       rg: _rgController.text,
       cpf: _cpfController.text,
       cnh: _cnhController.text,
+      endereco: _enderecoController.text,
       fotoRosto: _fotoRosto?.path,
       fotoCnh: _fotoCnh?.path,
       fotoComprovante: _fotoComprovante?.path,
     );
 
     await _db.salvarMotorista(novoMotorista);
-    await _carregarDados(); // Recarrega para voltar ao modo visualização
+    await _carregarDados();
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dados salvos com sucesso!')));
@@ -91,7 +91,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
   }
 
   Future<void> _selecionarImagem(String tipo) async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery); // Ou camera
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
     if (picked != null) {
       setState(() {
         if (tipo == 'rosto') _fotoRosto = File(picked.path);
@@ -104,7 +104,6 @@ class _DriverIdPageState extends State<DriverIdPage> {
   Future<void> _gerarPdf() async {
     final pdf = pw.Document();
 
-    // Carrega imagens para memória do PDF
     final imageRosto = _fotoRosto != null ? pw.MemoryImage(_fotoRosto!.readAsBytesSync()) : null;
     final imageCnh = _fotoCnh != null ? pw.MemoryImage(_fotoCnh!.readAsBytesSync()) : null;
     final imageComp = _fotoComprovante != null ? pw.MemoryImage(_fotoComprovante!.readAsBytesSync()) : null;
@@ -120,7 +119,6 @@ class _DriverIdPageState extends State<DriverIdPage> {
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  // Foto do Motorista
                   if (imageRosto != null)
                     pw.Container(
                       width: 100,
@@ -131,7 +129,6 @@ class _DriverIdPageState extends State<DriverIdPage> {
                       ),
                     ),
                   pw.SizedBox(width: 20),
-                  // Dados
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
@@ -139,6 +136,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
                       pw.Text('CPF: ${_cpfController.text}'),
                       pw.Text('RG: ${_rgController.text}'),
                       pw.Text('CNH: ${_cnhController.text}'),
+                      pw.Text('Endereço: ${_enderecoController.text}'), // Adicionado no PDF
                     ],
                   ),
                 ],
@@ -214,6 +212,8 @@ class _DriverIdPageState extends State<DriverIdPage> {
         TextField(controller: _rgController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'RG', border: OutlineInputBorder())),
         const SizedBox(height: 12),
         TextField(controller: _cnhController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'CNH', border: OutlineInputBorder())),
+        const SizedBox(height: 12),
+        TextField(controller: _enderecoController, decoration: const InputDecoration(labelText: 'Endereço Completo', border: OutlineInputBorder())),
         const SizedBox(height: 24),
         const Text('Fotos dos Documentos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 12),
@@ -258,6 +258,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
                 _linhaDado('CPF', _cpfController.text),
                 _linhaDado('RG', _rgController.text),
                 _linhaDado('CNH', _cnhController.text),
+                _linhaDado('Endereço', _enderecoController.text),
               ],
             ),
           ),
@@ -295,7 +296,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(valor, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Expanded(child: Text(valor, textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w600))),
         ],
       ),
     );

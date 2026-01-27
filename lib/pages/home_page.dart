@@ -68,6 +68,14 @@ class _HomePageState extends State<HomePage> {
       fretes.where((f) => f.statusFrete == 'Pendente').length;
   double get totalFinanceiro => fretes.fold(0, (s, f) => s + f.valorPago);
 
+  // Saudação com Emojis Dinâmicos
+  String get saudacao {
+    final hora = DateTime.now().hour;
+    if (hora >= 6 && hora < 12) return 'Bom dia ☀️';
+    if (hora >= 12 && hora < 18) return 'Boa tarde 🌤️';
+    return 'Boa noite 🌙';
+  }
+
   List<BoxShadow> _sombraPadrao(BuildContext context) {
     final escuro = Theme.of(context).brightness == Brightness.dark;
     return [
@@ -102,7 +110,8 @@ class _HomePageState extends State<HomePage> {
                 child: Center(
                   child: Column(
                     children: [
-                      Icon(Icons.local_shipping_outlined, size: 60, color: Colors.grey.withOpacity(0.5)),
+                      Icon(Icons.local_shipping_outlined,
+                          size: 60, color: Colors.grey.withOpacity(0.5)),
                       const SizedBox(height: 10),
                       Text(
                         'Nenhum frete cadastrado',
@@ -123,13 +132,14 @@ class _HomePageState extends State<HomePage> {
   Widget _cabecalho() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
+      children: [
         Text(
-          'Bom dia 👋',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          '$saudacao', // Usando a variável dinâmica aqui
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
-        SizedBox(height: 4),
-        Text('Resumo dos seus fretes', style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 4),
+        const Text('Resumo dos seus fretes',
+            style: TextStyle(color: Colors.grey)),
       ],
     );
   }
@@ -284,11 +294,11 @@ class _HomePageState extends State<HomePage> {
     final despesas = (id != null) ? (totalDespesasPorFrete[id] ?? 0.0) : 0.0;
 
     final valorBruto = frete.valorFrete;
-    
-    // CORREÇÃO: Líquido agora é calculado sobre o valor faltante (Em Aberto)
+
+    // Cálculo correto: Líquido = (Em Aberto) - Despesas
+    // (Considerando que as despesas saem do lucro/bolso do motorista e não da dívida da empresa)
     var valorLiquido = frete.valorFaltante - despesas;
-    
-    // Opcional: Se quiser permitir negativo, remova a linha abaixo
+
     if (valorLiquido < 0) valorLiquido = 0;
 
     return InkWell(
@@ -355,7 +365,6 @@ class _HomePageState extends State<HomePage> {
             Row(
               children: [
                 Expanded(child: _linhaValor('Despesas', despesas)),
-                // Aqui exibimos o novo cálculo
                 Expanded(child: _linhaValor('Líquido', valorLiquido)),
                 const Expanded(child: SizedBox()),
               ],

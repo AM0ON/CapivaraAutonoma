@@ -14,12 +14,11 @@ class FreteDatabase {
     if (_database != null) return _database!;
 
     final dbPath = await getDatabasesPath();
-    // Mantendo o nome original do banco, mas subindo a versão para forçar atualização
     final path = join(dbPath, 'fretes_v2.db');
 
     _database = await openDatabase(
       path,
-      version: 5, // Versão 5 para garantir a criação da tabela motorista
+      version: 6, // Versão 6: Adição de Endereço
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -28,7 +27,6 @@ class FreteDatabase {
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // Tabela ORIGINAL de Fretes (Sem alterações)
     await db.execute('''
       CREATE TABLE fretes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,7 +47,6 @@ class FreteDatabase {
       )
     ''');
 
-    // Tabela ORIGINAL de Despesas (Sem alterações)
     await db.execute('''
       CREATE TABLE despesas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,7 +59,6 @@ class FreteDatabase {
       )
     ''');
 
-    // NOVA Tabela Motorista (Adicionada)
     await db.execute('''
       CREATE TABLE motorista (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +66,7 @@ class FreteDatabase {
         rg TEXT,
         cpf TEXT,
         cnh TEXT,
+        endereco TEXT,
         foto_rosto TEXT,
         foto_cnh TEXT,
         foto_comprovante TEXT
@@ -78,7 +75,6 @@ class FreteDatabase {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Garante que a tabela motorista seja criada se o app já estiver instalado
     if (oldVersion < 5) {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS motorista (
@@ -93,12 +89,32 @@ class FreteDatabase {
         )
       ''');
     }
+    
+    // Atualização para versão 6: Adiciona coluna endereço se não existir
+    if (oldVersion < 6) {
+      // Verifica se a tabela existe antes de alterar
+      try {
+         await db.execute('ALTER TABLE motorista ADD COLUMN endereco TEXT');
+      } catch (e) {
+         // Se a tabela não existia, o create table acima já resolveu ou criamos agora
+         await db.execute('''
+          CREATE TABLE IF NOT EXISTS motorista (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT,
+            rg TEXT,
+            cpf TEXT,
+            cnh TEXT,
+            endereco TEXT,
+            foto_rosto TEXT,
+            foto_cnh TEXT,
+            foto_comprovante TEXT
+          )
+        ''');
+      }
+    }
   }
 
-  // ===========================================================================
-  // MÉTODOS ORIGINAIS - FRETES
-  // ===========================================================================
-
+  // --- MÉTODOS DE FRETE ---
   Future<int> inserirFrete(Frete frete) async {
     final db = await database;
     return await db.insert('fretes', frete.toMap());
@@ -129,10 +145,7 @@ class FreteDatabase {
     );
   }
 
-  // ===========================================================================
-  // MÉTODOS ORIGINAIS - DESPESAS (Restaurados com nomes originais)
-  // ===========================================================================
-
+  // --- MÉTODOS DE DESPESAS ---
   Future<int> inserirDespesa(Despesa despesa) async {
     final db = await database;
     return await db.insert('despesas', despesa.toMap());
@@ -158,7 +171,6 @@ class FreteDatabase {
     );
   }
 
-  // ESTE ERA O MÉTODO QUE ESTAVA FALTANDO E CAUSAVA O ERRO
   Future<double> totalDespesasDoFrete(int freteId) async {
     final db = await database;
     final result = await db.rawQuery(
@@ -172,7 +184,6 @@ class FreteDatabase {
     return 0.0;
   }
 
-  // Método auxiliar para a Home Page (Carrega vários de uma vez)
   Future<Map<int, double>> getTotaisDespesasPorFrete(List<int> freteIds) async {
     final db = await database;
     if (freteIds.isEmpty) return {};
@@ -196,10 +207,7 @@ class FreteDatabase {
     return map;
   }
 
-  // ===========================================================================
-  // NOVOS MÉTODOS - MOTORISTA (Driver ID)
-  // ===========================================================================
-
+  // --- MÉTODOS DE MOTORISTA ---
   Future<Motorista?> getMotorista() async {
     final db = await database;
     try {

@@ -4,6 +4,7 @@ class Motorista {
   final String? rg;
   final String? cpf;
   final String? cnh;
+  final String? endereco; // Novo campo
   final String? fotoRosto;
   final String? fotoCnh;
   final String? fotoComprovante;
@@ -14,6 +15,7 @@ class Motorista {
     this.rg,
     this.cpf,
     this.cnh,
+    this.endereco,
     this.fotoRosto,
     this.fotoCnh,
     this.fotoComprovante,
@@ -26,6 +28,7 @@ class Motorista {
       'rg': rg,
       'cpf': cpf,
       'cnh': cnh,
+      'endereco': endereco,
       'foto_rosto': fotoRosto,
       'foto_cnh': fotoCnh,
       'foto_comprovante': fotoComprovante,
@@ -39,6 +42,7 @@ class Motorista {
       rg: map['rg'],
       cpf: map['cpf'],
       cnh: map['cnh'],
+      endereco: map['endereco'],
       fotoRosto: map['foto_rosto'],
       fotoCnh: map['foto_cnh'],
       fotoComprovante: map['foto_comprovante'],
