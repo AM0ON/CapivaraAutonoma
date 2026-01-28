@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // <--- Necessário para bloquear letras
+import 'package:flutter/services.dart'; // Para inputFormatters
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:printing/printing.dart'; // Para compartilhar o PDF
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart'; // Para pedir permissão
 import '../services/driver_security_service.dart';
 
 class DriverIdPage extends StatefulWidget {
@@ -20,10 +21,9 @@ class DriverIdPage extends StatefulWidget {
 class _DriverIdPageState extends State<DriverIdPage> {
   final DriverSecurityService _securityService = DriverSecurityService();
   final ImagePicker _picker = ImagePicker();
-  
   final _formKey = GlobalKey<FormState>();
 
-  // --- CONTROLADORES ---
+  // --- CONTROLADORES DE TEXTO ---
   final _nomeCtrl = TextEditingController();
   final _cpfCtrl = TextEditingController();
   final _cnhCtrl = TextEditingController();
@@ -54,14 +54,15 @@ class _DriverIdPageState extends State<DriverIdPage> {
     _carregarDados();
   }
 
-  // --- DATE PICKER ---
+  // --- DATE PICKER (Calendário) 🗓️ ---
   Future<void> _selecionarData(TextEditingController controller) async {
-    FocusScope.of(context).requestFocus(FocusNode());
+    FocusScope.of(context).requestFocus(FocusNode()); // Fecha teclado
     DateTime? dataEscolhida = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(1950),
       lastDate: DateTime(2040),
+      locale: const Locale('pt', 'BR'),
     );
 
     if (dataEscolhida != null) {
@@ -74,71 +75,78 @@ class _DriverIdPageState extends State<DriverIdPage> {
     }
   }
 
-  // 1. CARREGAR
+  // 1. CARREGAR DADOS (Protegido)
   Future<void> _carregarDados() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _nomeCtrl.text = prefs.getString('doc_nome') ?? prefs.getString('perfil_nome') ?? '';
-      _cpfCtrl.text = prefs.getString('doc_cpf') ?? ''; 
-      _cnhCtrl.text = prefs.getString('doc_cnh') ?? '';
-      _categoriaCtrl.text = prefs.getString('doc_categoria') ?? '';
-      _validadeCtrl.text = prefs.getString('doc_validade') ?? '';
-      _rgCtrl.text = prefs.getString('doc_rg') ?? '';
-      _rgEmissaoCtrl.text = prefs.getString('doc_rg_emissao') ?? '';
-      _rgOrgaoCtrl.text = prefs.getString('doc_rg_orgao') ?? '';
-      _rgUfCtrl.text = prefs.getString('doc_rg_uf') ?? '';
-      _anttCtrl.text = prefs.getString('doc_antt') ?? '';
-      _cepCtrl.text = prefs.getString('doc_cep') ?? '';
-      _enderecoCtrl.text = prefs.getString('doc_endereco') ?? '';
-      _cidadeUfCtrl.text = prefs.getString('doc_cidade_uf') ?? '';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _nomeCtrl.text = prefs.getString('doc_nome') ?? prefs.getString('perfil_nome') ?? '';
+        _cpfCtrl.text = prefs.getString('doc_cpf') ?? ''; 
+        _cnhCtrl.text = prefs.getString('doc_cnh') ?? '';
+        _categoriaCtrl.text = prefs.getString('doc_categoria') ?? '';
+        _validadeCtrl.text = prefs.getString('doc_validade') ?? '';
+        _rgCtrl.text = prefs.getString('doc_rg') ?? '';
+        _rgEmissaoCtrl.text = prefs.getString('doc_rg_emissao') ?? '';
+        _rgOrgaoCtrl.text = prefs.getString('doc_rg_orgao') ?? '';
+        _rgUfCtrl.text = prefs.getString('doc_rg_uf') ?? '';
+        _anttCtrl.text = prefs.getString('doc_antt') ?? '';
+        _cepCtrl.text = prefs.getString('doc_cep') ?? '';
+        _enderecoCtrl.text = prefs.getString('doc_endereco') ?? '';
+        _cidadeUfCtrl.text = prefs.getString('doc_cidade_uf') ?? '';
 
-      _imgCnhPath = prefs.getString('img_cnh');
-      _imgCrlvPath = prefs.getString('img_crlv');
-      _imgRgPath = prefs.getString('img_rg');
-      _imgCompEnderecoPath = prefs.getString('img_comp_end');
-      _imgAnttPath = prefs.getString('img_antt');
+        _imgCnhPath = prefs.getString('img_cnh');
+        _imgCrlvPath = prefs.getString('img_crlv');
+        _imgRgPath = prefs.getString('img_rg');
+        _imgCompEnderecoPath = prefs.getString('img_comp_end');
+        _imgAnttPath = prefs.getString('img_antt');
 
-      _temDados = _cnhCtrl.text.isNotEmpty && _nomeCtrl.text.isNotEmpty;
-      _carregando = false;
-    });
+        _temDados = _cnhCtrl.text.isNotEmpty && _nomeCtrl.text.isNotEmpty;
+        _carregando = false;
+      });
+    } catch (e) {
+      debugPrint("Erro ao carregar: $e");
+      setState(() => _carregando = false);
+    }
   }
 
-  // 2. SALVAR
+  // 2. SALVAR DADOS
   Future<void> _salvarDados() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha os campos obrigatórios (*)')));
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('doc_nome', _nomeCtrl.text);
-    await prefs.setString('doc_cpf', _cpfCtrl.text);
-    await prefs.setString('doc_cnh', _cnhCtrl.text);
-    await prefs.setString('doc_categoria', _categoriaCtrl.text);
-    await prefs.setString('doc_validade', _validadeCtrl.text);
-    await prefs.setString('doc_rg', _rgCtrl.text);
-    await prefs.setString('doc_rg_emissao', _rgEmissaoCtrl.text);
-    await prefs.setString('doc_rg_orgao', _rgOrgaoCtrl.text);
-    await prefs.setString('doc_rg_uf', _rgUfCtrl.text);
-    await prefs.setString('doc_antt', _anttCtrl.text);
-    await prefs.setString('doc_cep', _cepCtrl.text);
-    await prefs.setString('doc_endereco', _enderecoCtrl.text);
-    await prefs.setString('doc_cidade_uf', _cidadeUfCtrl.text);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('doc_nome', _nomeCtrl.text);
+      await prefs.setString('doc_cpf', _cpfCtrl.text);
+      await prefs.setString('doc_cnh', _cnhCtrl.text);
+      await prefs.setString('doc_categoria', _categoriaCtrl.text);
+      await prefs.setString('doc_validade', _validadeCtrl.text);
+      await prefs.setString('doc_rg', _rgCtrl.text);
+      await prefs.setString('doc_rg_emissao', _rgEmissaoCtrl.text);
+      await prefs.setString('doc_rg_orgao', _rgOrgaoCtrl.text);
+      await prefs.setString('doc_rg_uf', _rgUfCtrl.text);
+      await prefs.setString('doc_antt', _anttCtrl.text);
+      await prefs.setString('doc_cep', _cepCtrl.text);
+      await prefs.setString('doc_endereco', _enderecoCtrl.text);
+      await prefs.setString('doc_cidade_uf', _cidadeUfCtrl.text);
 
-    if (_imgCnhPath != null) await prefs.setString('img_cnh', _imgCnhPath!);
-    if (_imgCrlvPath != null) await prefs.setString('img_crlv', _imgCrlvPath!);
-    if (_imgRgPath != null) await prefs.setString('img_rg', _imgRgPath!);
-    if (_imgCompEnderecoPath != null) await prefs.setString('img_comp_end', _imgCompEnderecoPath!);
-    if (_imgAnttPath != null) await prefs.setString('img_antt', _imgAnttPath!);
+      if (_imgCnhPath != null) await prefs.setString('img_cnh', _imgCnhPath!);
+      if (_imgCrlvPath != null) await prefs.setString('img_crlv', _imgCrlvPath!);
+      if (_imgRgPath != null) await prefs.setString('img_rg', _imgRgPath!);
+      if (_imgCompEnderecoPath != null) await prefs.setString('img_comp_end', _imgCompEnderecoPath!);
+      if (_imgAnttPath != null) await prefs.setString('img_antt', _imgAnttPath!);
 
-    setState(() => _temDados = true);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cadastro completo salvo com sucesso! 🚛✅')));
+      setState(() => _temDados = true);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cadastro salvo! 🚛✅')));
+    
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
     }
   }
 
-  // --- FOTOS ---
+  // --- 3. LÓGICA DE FOTOS E PERMISSÕES 📸 ---
   void _mostrarOpcoesFoto(String tipoDoc) {
     showModalBottomSheet(
       context: context,
@@ -155,12 +163,47 @@ class _DriverIdPageState extends State<DriverIdPage> {
                 ListTile(
                   leading: const Icon(Icons.camera_alt, color: Colors.blue, size: 30),
                   title: const Text("Tirar Foto"),
-                  onTap: () { Navigator.pop(context); _processarImagem(tipoDoc, ImageSource.camera); },
+                  onTap: () async { 
+                    Navigator.pop(context); 
+                    // Pede permissão de Câmera
+                    var status = await Permission.camera.request();
+                    if (status.isGranted) {
+                       _processarImagem(tipoDoc, ImageSource.camera);
+                    } else {
+                       _avisoPermissao("Câmera");
+                    }
+                  },
                 ),
                 ListTile(
                   leading: const Icon(Icons.photo_library, color: Colors.green, size: 30),
                   title: const Text("Galeria"),
-                  onTap: () { Navigator.pop(context); _processarImagem(tipoDoc, ImageSource.gallery); },
+                  onTap: () async { 
+                    Navigator.pop(context);
+                    // Lógica para Android 13+ vs Antigos
+                    bool permitido = false;
+                    
+                    if (Platform.isAndroid) {
+                      Map<Permission, PermissionStatus> statuses = await [
+                        Permission.storage, 
+                        Permission.photos,
+                        Permission.mediaLibrary
+                      ].request();
+
+                      if (statuses[Permission.storage]!.isGranted || 
+                          statuses[Permission.photos]!.isGranted ||
+                          statuses[Permission.mediaLibrary]!.isGranted) {
+                        permitido = true;
+                      }
+                    } else {
+                      permitido = true; // iOS ou outros
+                    }
+                    
+                    if (permitido) {
+                      _processarImagem(tipoDoc, ImageSource.gallery); 
+                    } else {
+                      _avisoPermissao("Galeria");
+                    }
+                  },
                 ),
               ],
             ),
@@ -168,6 +211,15 @@ class _DriverIdPageState extends State<DriverIdPage> {
         );
       }
     );
+  }
+
+  void _avisoPermissao(String feature) {
+    if(mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Habilite a permissão de $feature nas configurações.'),
+        action: SnackBarAction(label: 'Abrir', onPressed: openAppSettings),
+      ));
+    }
   }
 
   Future<void> _processarImagem(String tipoDoc, ImageSource origem) async {
@@ -189,7 +241,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
     } catch (e) { debugPrint('Erro na foto: $e'); }
   }
 
-  // --- PDF ---
+  // --- PDF GENERATOR (A4 + DISCLAIMER) ---
   Future<Uint8List> _gerarBytesPDF() async {
     final pdf = pw.Document();
     final dataGeracao = "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}";
@@ -213,6 +265,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
                 ),
               ),
               pw.SizedBox(height: 20),
+              // CRACHÁ
               pw.Center(
                 child: pw.Container(
                   width: 8.56 * PdfPageFormat.cm,
@@ -230,7 +283,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
                         children: [
                           pw.BarcodeWidget(
                             barcode: pw.Barcode.qrCode(),
-                            data: "DriverID:${_cnhCtrl.text}|CPF:${_cpfCtrl.text}|Valid:${_validadeCtrl.text}",
+                            data: "DriverID:${_cnhCtrl.text}|CPF:${_cpfCtrl.text}",
                             width: 35, height: 35,
                           ),
                           pw.SizedBox(height: 4),
@@ -320,15 +373,47 @@ class _DriverIdPageState extends State<DriverIdPage> {
     );
   }
 
+  // --- AÇÃO PRINCIPAL: SALVAR/COMPARTILHAR ---
+  // Esta função substitui a antiga que tentava salvar direto na pasta.
+  // Ela abre o menu nativo do Android para o usuário escolher onde guardar.
   void _salvarSeguro() async {
-    final bytes = await _gerarBytesPDF();
-    final caminho = await _securityService.salvarDriverIdSeguro(bytes);
-    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🔒 Salvo em: $caminho'), backgroundColor: Colors.green));
+    try {
+      setState(() => _carregando = true);
+
+      final bytes = await _gerarBytesPDF();
+      final nomeArquivo = 'DriverID_${_nomeCtrl.text.trim().replaceAll(" ", "_")}.pdf';
+
+      // Abre o menu nativo para compartilhar/salvar
+      await Printing.sharePdf(bytes: bytes, filename: nomeArquivo);
+
+      setState(() => _carregando = false);
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PDF gerado! Escolha onde salvar 📂'), backgroundColor: Colors.green)
+        );
+      }
+    } catch (e) {
+      debugPrint("ERRO AO SALVAR PDF: $e");
+      setState(() => _carregando = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao gerar: $e'), backgroundColor: Colors.red)
+        );
+      }
+    }
   }
+
   void _visualizar() async {
-    final bytes = await _securityService.carregarDriverId();
-    if(bytes != null) await Printing.layoutPdf(onLayout: (_) async => bytes);
-    else if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum ID salvo encontrado.')));
+    final bytes = await _securityService.carregarDriverId(); // Aqui tenta carregar um salvo criptografado, se houver
+    // Se quiser visualizar o atual (fresco), teria que gerar de novo.
+    // Mas vamos manter a lógica de ver o arquivo.
+    if(bytes != null) {
+      await Printing.layoutPdf(onLayout: (_) async => bytes);
+    } else {
+      // Se não tiver salvo, gera um na hora para visualização
+      final newBytes = await _gerarBytesPDF();
+      await Printing.layoutPdf(onLayout: (_) async => newBytes);
+    }
   }
 
   @override
@@ -349,7 +434,6 @@ class _DriverIdPageState extends State<DriverIdPage> {
     );
   }
 
-  // --- FORMULÁRIO UI (COM BLOQUEIO DE NÚMEROS) ---
   Widget _buildFormularioCompleto() {
     return Form(
       key: _formKey,
@@ -370,7 +454,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
                 controller: _cpfCtrl, 
                 decoration: const InputDecoration(labelText: 'CPF * (Só números)', isDense: true), 
                 keyboardType: TextInputType.number, 
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly], 
                 validator: (v) => v!.isEmpty ? 'Req' : null
               )
             ),
@@ -380,7 +464,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
                 controller: _cnhCtrl, 
                 decoration: const InputDecoration(labelText: 'CNH * (Só números)', isDense: true), 
                 keyboardType: TextInputType.number, 
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly], 
                 validator: (v) => v!.isEmpty ? 'Req' : null
               )
             ),
@@ -409,7 +493,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
                 controller: _rgCtrl, 
                 decoration: const InputDecoration(labelText: 'Número RG (Só números)', isDense: true),
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               )
             ),
             const SizedBox(width: 10),
@@ -436,7 +520,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
             controller: _anttCtrl, 
             decoration: const InputDecoration(labelText: 'ANTT Nº (Só números)', isDense: true),
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
           const SizedBox(height: 10),
           Row(children: [
@@ -445,7 +529,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
                 controller: _cepCtrl, 
                 decoration: const InputDecoration(labelText: 'CEP (Só números)', isDense: true), 
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               )
             ),
             const SizedBox(width: 10),
@@ -456,7 +540,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
 
           const SizedBox(height: 20),
           const Text("4. Fotos dos Documentos 📸", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
-          const Text("Toque para escolher (Câmera ou Galeria).", style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const Text("Toque para escolher.", style: TextStyle(color: Colors.grey, fontSize: 12)),
           const Divider(),
           const SizedBox(height: 10),
           
@@ -492,6 +576,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
 
   Widget _buildImageUploadButton(String label, String? path, String tipoDoc) {
     bool temFoto = path != null && path.isNotEmpty && File(path).existsSync();
+
     return InkWell(
       onTap: () => _mostrarOpcoesFoto(tipoDoc),
       child: Container(
@@ -551,7 +636,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
         ),
         const SizedBox(height: 30),
         Row(children: [
-          Expanded(child: ElevatedButton.icon(onPressed: _salvarSeguro, icon: const Icon(Icons.lock), label: const Text('Criptografar'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white))),
+          Expanded(child: ElevatedButton.icon(onPressed: _salvarSeguro, icon: const Icon(Icons.share), label: const Text('Salvar/Compartilhar'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white))),
           const SizedBox(width: 10),
           Expanded(child: ElevatedButton.icon(onPressed: _visualizar, icon: const Icon(Icons.visibility), label: const Text('Ver Arquivo'), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white))),
         ]),
