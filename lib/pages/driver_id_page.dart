@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Para inputFormatters
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart'; // Para compartilhar o PDF
+import 'package:printing/printing.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart'; // Para pedir permissão
+import 'package:permission_handler/permission_handler.dart'; 
+import 'package:share_plus/share_plus.dart'; 
 import '../services/driver_security_service.dart';
 
 class DriverIdPage extends StatefulWidget {
@@ -23,7 +24,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
   final ImagePicker _picker = ImagePicker();
   final _formKey = GlobalKey<FormState>();
 
-  // --- CONTROLADORES DE TEXTO ---
+  // --- CONTROLADORES ---
   final _nomeCtrl = TextEditingController();
   final _cpfCtrl = TextEditingController();
   final _cnhCtrl = TextEditingController();
@@ -38,7 +39,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
   final _enderecoCtrl = TextEditingController();
   final _cidadeUfCtrl = TextEditingController();
 
-  // --- CAMINHOS DAS IMAGENS ---
+  // --- IMAGENS ---
   String? _imgCnhPath;
   String? _imgCrlvPath;
   String? _imgRgPath;
@@ -54,28 +55,40 @@ class _DriverIdPageState extends State<DriverIdPage> {
     _carregarDados();
   }
 
-  // --- DATE PICKER (Calendário) 🗓️ ---
+  // --- DATE PICKER 🗓️ ---
   Future<void> _selecionarData(TextEditingController controller) async {
-    FocusScope.of(context).requestFocus(FocusNode()); // Fecha teclado
-    DateTime? dataEscolhida = await showDatePicker(
+    FocusScope.of(context).unfocus(); 
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    if (!mounted) return;
+
+    final DateTime? dataEscolhida = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(1950),
       lastDate: DateTime(2040),
-      locale: const Locale('pt', 'BR'),
+      locale: const Locale('pt', 'BR'), 
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(primary: Colors.blue.shade800),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (dataEscolhida != null) {
-      String dia = dataEscolhida.day.toString().padLeft(2, '0');
-      String mes = dataEscolhida.month.toString().padLeft(2, '0');
-      String ano = dataEscolhida.year.toString();
+      final dia = dataEscolhida.day.toString().padLeft(2, '0');
+      final mes = dataEscolhida.month.toString().padLeft(2, '0');
+      final ano = dataEscolhida.year.toString();
       setState(() {
         controller.text = "$dia/$mes/$ano";
       });
     }
   }
 
-  // 1. CARREGAR DADOS (Protegido)
+  // 1. CARREGAR
   Future<void> _carregarDados() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -104,7 +117,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
         _carregando = false;
       });
     } catch (e) {
-      debugPrint("Erro ao carregar: $e");
+      debugPrint("Erro load: $e");
       setState(() => _carregando = false);
     }
   }
@@ -112,7 +125,9 @@ class _DriverIdPageState extends State<DriverIdPage> {
   // 2. SALVAR DADOS
   Future<void> _salvarDados() async {
     if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha os campos obrigatórios (*)')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ Preencha os campos obrigatórios (*)', style: TextStyle(color: Colors.white)), backgroundColor: Colors.red)
+      );
       return;
     }
 
@@ -139,109 +154,69 @@ class _DriverIdPageState extends State<DriverIdPage> {
       if (_imgAnttPath != null) await prefs.setString('img_antt', _imgAnttPath!);
 
       setState(() => _temDados = true);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cadastro salvo! 🚛✅')));
-    
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cadastro salvo com sucesso! 🚛✅'), backgroundColor: Colors.green));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
+      debugPrint("Erro save: $e");
     }
   }
 
-  // --- 3. LÓGICA DE FOTOS E PERMISSÕES 📸 ---
+  // --- FOTOS ---
   void _mostrarOpcoesFoto(String tipoDoc) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text("Escolha a origem", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                const SizedBox(height: 20),
-                ListTile(
-                  leading: const Icon(Icons.camera_alt, color: Colors.blue, size: 30),
-                  title: const Text("Tirar Foto"),
-                  onTap: () async { 
-                    Navigator.pop(context); 
-                    // Pede permissão de Câmera
-                    var status = await Permission.camera.request();
-                    if (status.isGranted) {
-                       _processarImagem(tipoDoc, ImageSource.camera);
-                    } else {
-                       _avisoPermissao("Câmera");
-                    }
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library, color: Colors.green, size: 30),
-                  title: const Text("Galeria"),
-                  onTap: () async { 
-                    Navigator.pop(context);
-                    // Lógica para Android 13+ vs Antigos
-                    bool permitido = false;
-                    
-                    if (Platform.isAndroid) {
-                      Map<Permission, PermissionStatus> statuses = await [
-                        Permission.storage, 
-                        Permission.photos,
-                        Permission.mediaLibrary
-                      ].request();
-
-                      if (statuses[Permission.storage]!.isGranted || 
-                          statuses[Permission.photos]!.isGranted ||
-                          statuses[Permission.mediaLibrary]!.isGranted) {
-                        permitido = true;
-                      }
-                    } else {
-                      permitido = true; // iOS ou outros
-                    }
-                    
-                    if (permitido) {
-                      _processarImagem(tipoDoc, ImageSource.gallery); 
-                    } else {
-                      _avisoPermissao("Galeria");
-                    }
-                  },
-                ),
-              ],
-            ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Anexar Documento", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.camera_alt, color: Colors.white)),
+                title: const Text("Tirar Foto"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (await Permission.camera.request().isGranted) _processarImagem(tipoDoc, ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(backgroundColor: Colors.green, child: Icon(Icons.photo_library, color: Colors.white)),
+                title: const Text("Galeria"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  if (Platform.isAndroid) {
+                    await [Permission.storage, Permission.photos].request();
+                  }
+                  _processarImagem(tipoDoc, ImageSource.gallery);
+                },
+              ),
+            ],
           ),
-        );
-      }
+        ),
+      ),
     );
-  }
-
-  void _avisoPermissao(String feature) {
-    if(mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Habilite a permissão de $feature nas configurações.'),
-        action: SnackBarAction(label: 'Abrir', onPressed: openAppSettings),
-      ));
-    }
   }
 
   Future<void> _processarImagem(String tipoDoc, ImageSource origem) async {
     try {
       final XFile? foto = await _picker.pickImage(source: origem, imageQuality: 50);
       if (foto == null) return;
-      final directory = await getApplicationDocumentsDirectory();
-      final String novoPath = '${directory.path}/${tipoDoc}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await foto.saveTo(novoPath);
+      final dir = await getApplicationDocumentsDirectory();
+      final path = '${dir.path}/${tipoDoc}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await foto.saveTo(path);
       setState(() {
-        switch (tipoDoc) {
-          case 'cnh': _imgCnhPath = novoPath; break;
-          case 'crlv': _imgCrlvPath = novoPath; break;
-          case 'rg': _imgRgPath = novoPath; break;
-          case 'comp_end': _imgCompEnderecoPath = novoPath; break;
-          case 'antt': _imgAnttPath = novoPath; break;
-        }
+         if(tipoDoc == 'cnh') _imgCnhPath = path;
+         else if(tipoDoc == 'crlv') _imgCrlvPath = path;
+         else if(tipoDoc == 'rg') _imgRgPath = path;
+         else if(tipoDoc == 'comp_end') _imgCompEnderecoPath = path;
+         else if(tipoDoc == 'antt') _imgAnttPath = path;
       });
-    } catch (e) { debugPrint('Erro na foto: $e'); }
+    } catch (e) { debugPrint("Erro foto: $e"); }
   }
 
-  // --- PDF GENERATOR (A4 + DISCLAIMER) ---
+  // --- PDF GENERATOR ---
   Future<Uint8List> _gerarBytesPDF() async {
     final pdf = pw.Document();
     final dataGeracao = "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}";
@@ -254,104 +229,39 @@ class _DriverIdPageState extends State<DriverIdPage> {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Header(
-                level: 0,
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text("FICHA CADASTRAL DO MOTORISTA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
-                    pw.Text("Emissão: $dataGeracao", style: const pw.TextStyle(color: PdfColors.grey)),
-                  ],
-                ),
-              ),
+              pw.Header(level: 0, child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Text("FICHA CADASTRAL", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+                pw.Text("Emissão: $dataGeracao", style: const pw.TextStyle(color: PdfColors.grey)),
+              ])),
               pw.SizedBox(height: 20),
-              // CRACHÁ
               pw.Center(
                 child: pw.Container(
                   width: 8.56 * PdfPageFormat.cm,
                   height: 5.4 * PdfPageFormat.cm,
                   padding: const pw.EdgeInsets.all(8),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(),
-                    borderRadius: pw.BorderRadius.circular(4),
-                    color: PdfColors.grey100, 
-                  ),
-                  child: pw.Row(
-                    children: [
-                      pw.Column(
-                        mainAxisAlignment: pw.MainAxisAlignment.center,
-                        children: [
-                          pw.BarcodeWidget(
-                            barcode: pw.Barcode.qrCode(),
-                            data: "DriverID:${_cnhCtrl.text}|CPF:${_cpfCtrl.text}",
-                            width: 35, height: 35,
-                          ),
-                          pw.SizedBox(height: 4),
-                          pw.Text("ANTT", style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey)),
-                          pw.Text(_anttCtrl.text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                        ],
-                      ),
-                      pw.SizedBox(width: 8),
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          mainAxisAlignment: pw.MainAxisAlignment.center,
-                          children: [
-                            pw.Text("MOTORISTA PROFISSIONAL", style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                            pw.Divider(thickness: 0.5),
-                            pw.Text(_nomeCtrl.text.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                            pw.Row(children: [
-                              pw.Text("CNH: ${_cnhCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
-                              pw.SizedBox(width: 5),
-                              pw.Text("CAT: ${_categoriaCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
-                            ]),
-                            pw.Text("RG: ${_rgCtrl.text} ${_rgOrgaoCtrl.text}/${_rgUfCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
-                            pw.Text("CPF: ${_cpfCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  decoration: pw.BoxDecoration(border: pw.Border.all(), borderRadius: pw.BorderRadius.circular(4), color: PdfColors.grey100),
+                  child: pw.Row(children: [
+                    pw.Column(mainAxisAlignment: pw.MainAxisAlignment.center, children: [
+                      pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: "ID:${_cnhCtrl.text}", width: 35, height: 35),
+                    ]),
+                    pw.SizedBox(width: 8),
+                    pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, mainAxisAlignment: pw.MainAxisAlignment.center, children: [
+                      pw.Text("MOTORISTA PROFISSIONAL", style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                      pw.Divider(thickness: 0.5),
+                      pw.Text(_nomeCtrl.text.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                      pw.Text("CNH: ${_cnhCtrl.text} | RG: ${_rgCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
+                    ])),
+                  ]),
                 ),
               ),
               pw.SizedBox(height: 30),
-              pw.Text("DETALHES DA DOCUMENTAÇÃO", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
-              pw.Divider(),
-              pw.SizedBox(height: 10),
-              _pwRowData("Nome Completo:", _nomeCtrl.text),
+              _pwRowData("Nome:", _nomeCtrl.text),
               _pwRowData("CPF:", _cpfCtrl.text),
-              _pwRowData("RG:", "${_rgCtrl.text} - Órgão: ${_rgOrgaoCtrl.text}/${_rgUfCtrl.text}"),
-              _pwRowData("Data Emissão RG:", _rgEmissaoCtrl.text),
-              pw.SizedBox(height: 10),
-              _pwRowData("CNH:", "${_cnhCtrl.text}  |  Categoria: ${_categoriaCtrl.text}"),
-              _pwRowData("Validade CNH:", _validadeCtrl.text),
-              _pwRowData("Registro ANTT:", _anttCtrl.text.isEmpty ? "Não informado" : _anttCtrl.text),
-              pw.SizedBox(height: 10),
-              pw.Text("Endereço Cadastrado:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-              pw.Text("${_enderecoCtrl.text}", style: const pw.TextStyle(fontSize: 10)),
-              pw.Text("${_cidadeUfCtrl.text} - CEP: ${_cepCtrl.text}", style: const pw.TextStyle(fontSize: 10)),
+              _pwRowData("CNH:", _cnhCtrl.text),
+              _pwRowData("Validade:", _validadeCtrl.text),
               pw.Spacer(),
               pw.Divider(),
-              pw.Container(
-                alignment: pw.Alignment.center,
-                margin: const pw.EdgeInsets.only(top: 10),
-                child: pw.Column(
-                  children: [
-                    pw.Text("AzorTech Software Solutions", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                    pw.SizedBox(height: 5),
-                    pw.Text(
-                      "A AzorTech Software Solutions se isenta da responsabilidade da veracidade dos dados e documentos anexados a este ID. A verificação e autenticidade dos mesmos são de responsabilidade total do Usuário: ${_nomeCtrl.text.toUpperCase()}.",
-                      textAlign: pw.TextAlign.center,
-                      style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-                    ),
-                    pw.SizedBox(height: 5),
-                    pw.Text(
-                      "Documento gerado digitalmente via App Capivara Loka. UUID Seguro.",
-                      style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey500),
-                    ),
-                  ],
-                ),
-              ),
+              pw.Center(child: pw.Text("AzorTech Software Solutions - Documento Digital Seguro", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey))),
             ],
           );
         },
@@ -361,68 +271,43 @@ class _DriverIdPageState extends State<DriverIdPage> {
   }
 
   pw.Widget _pwRowData(String label, String value) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 4),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.SizedBox(width: 100, child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))),
-          pw.Expanded(child: pw.Text(value, style: const pw.TextStyle(fontSize: 10))),
-        ],
-      ),
-    );
+    return pw.Padding(padding: const pw.EdgeInsets.only(bottom: 5), child: pw.Row(children: [
+      pw.SizedBox(width: 80, child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))),
+      pw.Expanded(child: pw.Text(value, style: const pw.TextStyle(fontSize: 10))),
+    ]));
   }
 
-  // --- AÇÃO PRINCIPAL: SALVAR/COMPARTILHAR ---
-  // Esta função substitui a antiga que tentava salvar direto na pasta.
-  // Ela abre o menu nativo do Android para o usuário escolher onde guardar.
-  void _salvarSeguro() async {
+  Future<void> _salvarSeguro() async {
     try {
       setState(() => _carregando = true);
-
       final bytes = await _gerarBytesPDF();
+      final tempDir = await getTemporaryDirectory();
       final nomeArquivo = 'DriverID_${_nomeCtrl.text.trim().replaceAll(" ", "_")}.pdf';
-
-      // Abre o menu nativo para compartilhar/salvar
-      await Printing.sharePdf(bytes: bytes, filename: nomeArquivo);
+      final file = File('${tempDir.path}/$nomeArquivo');
+      await file.writeAsBytes(bytes);
 
       setState(() => _carregando = false);
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF gerado! Escolha onde salvar 📂'), backgroundColor: Colors.green)
-        );
-      }
+      await Share.shareXFiles([XFile(file.path)], text: 'Segue meu Driver ID atualizado.');
     } catch (e) {
-      debugPrint("ERRO AO SALVAR PDF: $e");
+      debugPrint("ERRO PDF: $e");
       setState(() => _carregando = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao gerar: $e'), backgroundColor: Colors.red)
-        );
-      }
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro ao gerar PDF: $e"), backgroundColor: Colors.red));
     }
   }
 
-  void _visualizar() async {
-    final bytes = await _securityService.carregarDriverId(); // Aqui tenta carregar um salvo criptografado, se houver
-    // Se quiser visualizar o atual (fresco), teria que gerar de novo.
-    // Mas vamos manter a lógica de ver o arquivo.
-    if(bytes != null) {
-      await Printing.layoutPdf(onLayout: (_) async => bytes);
-    } else {
-      // Se não tiver salvo, gera um na hora para visualização
-      final newBytes = await _gerarBytesPDF();
-      await Printing.layoutPdf(onLayout: (_) async => newBytes);
-    }
-  }
-
+  // --- UI PRINCIPAL ---
   @override
   Widget build(BuildContext context) {
     if (_carregando) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
+      backgroundColor: Colors.grey[100], // Fundo leve
       appBar: AppBar(
         title: const Text('Driver ID'),
+        backgroundColor: Colors.blue[900],
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        elevation: 0,
         actions: [
           if (_temDados) IconButton(icon: const Icon(Icons.edit), onPressed: () => setState(() => _temDados = false))
         ],
@@ -434,168 +319,171 @@ class _DriverIdPageState extends State<DriverIdPage> {
     );
   }
 
+  // --- WIDGET DE CAMPO ESTILIZADO (O SEGREDO DA BELEZA) 🎨 ---
+  Widget _buildCampoCustom({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool numberOnly = false,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    String? Function(String?)? validator,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        readOnly: readOnly,
+        onTap: onTap,
+        keyboardType: numberOnly ? TextInputType.number : TextInputType.text,
+        inputFormatters: numberOnly ? [FilteringTextInputFormatter.digitsOnly] : [],
+        validator: validator,
+        style: const TextStyle(fontSize: 15),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: Colors.blue[800], size: 22),
+          filled: true,
+          fillColor: Colors.white,
+          isDense: true, // Deixa mais compacto
+          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none, // Sem borda quando inativo
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.blue.shade800, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 1),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGET DE SEÇÃO (CARTÃO) ---
+  Widget _buildSectionCard({required String title, required List<Widget> children}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue[900])),
+          const SizedBox(height: 5),
+          const Divider(thickness: 0.5),
+          const SizedBox(height: 10),
+          ...children,
+        ],
+      ),
+    );
+  }
+
   Widget _buildFormularioCompleto() {
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("1. Dados Pessoais & CNH", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
-          const Divider(),
-          TextFormField(
-            controller: _nomeCtrl, 
-            decoration: const InputDecoration(labelText: 'Nome Completo *', isDense: true), 
-            validator: (v) => v!.isEmpty ? 'Obrigatório' : null
-          ),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: TextFormField(
-                controller: _cpfCtrl, 
-                decoration: const InputDecoration(labelText: 'CPF * (Só números)', isDense: true), 
-                keyboardType: TextInputType.number, 
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly], 
-                validator: (v) => v!.isEmpty ? 'Req' : null
-              )
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextFormField(
-                controller: _cnhCtrl, 
-                decoration: const InputDecoration(labelText: 'CNH * (Só números)', isDense: true), 
-                keyboardType: TextInputType.number, 
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly], 
-                validator: (v) => v!.isEmpty ? 'Req' : null
-              )
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: TextFormField(controller: _categoriaCtrl, decoration: const InputDecoration(labelText: 'Categoria', isDense: true))),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextFormField(
-                controller: _validadeCtrl,
-                readOnly: true, 
-                onTap: () => _selecionarData(_validadeCtrl), 
-                decoration: const InputDecoration(labelText: 'Validade CNH', isDense: true, suffixIcon: Icon(Icons.calendar_today, size: 16)),
-              )
-            ),
-          ]),
-
-          const SizedBox(height: 20),
-          const Text("2. Registro Geral (RG)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
-          const Divider(),
-          Row(children: [
-            Expanded(
-              flex: 2, 
-              child: TextFormField(
-                controller: _rgCtrl, 
-                decoration: const InputDecoration(labelText: 'Número RG (Só números)', isDense: true),
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              )
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextFormField(
-                controller: _rgEmissaoCtrl, 
-                readOnly: true,
-                onTap: () => _selecionarData(_rgEmissaoCtrl),
-                decoration: const InputDecoration(labelText: 'Emissão', isDense: true, suffixIcon: Icon(Icons.calendar_today, size: 16))
-              )
-            ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: TextFormField(controller: _rgOrgaoCtrl, decoration: const InputDecoration(labelText: 'Expedidor (Ex: SSP)', isDense: true))),
-            const SizedBox(width: 10),
-            Expanded(child: TextFormField(controller: _rgUfCtrl, decoration: const InputDecoration(labelText: 'UF', isDense: true))),
-          ]),
-
-          const SizedBox(height: 20),
-          const Text("3. Dados Profissionais & Endereço", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
-          const Divider(),
-          TextFormField(
-            controller: _anttCtrl, 
-            decoration: const InputDecoration(labelText: 'ANTT Nº (Só números)', isDense: true),
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          ),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(
-              child: TextFormField(
-                controller: _cepCtrl, 
-                decoration: const InputDecoration(labelText: 'CEP (Só números)', isDense: true), 
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              )
-            ),
-            const SizedBox(width: 10),
-            Expanded(flex: 2, child: TextFormField(controller: _cidadeUfCtrl, decoration: const InputDecoration(labelText: 'Cidade/UF', isDense: true))),
-          ]),
-          const SizedBox(height: 10),
-          TextFormField(controller: _enderecoCtrl, decoration: const InputDecoration(labelText: 'Endereço Completo (Rua, Nº, Bairro)', isDense: true)),
-
-          const SizedBox(height: 20),
-          const Text("4. Fotos dos Documentos 📸", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
-          const Text("Toque para escolher.", style: TextStyle(color: Colors.grey, fontSize: 12)),
-          const Divider(),
-          const SizedBox(height: 10),
-          
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
+          // SEÇÃO 1: DADOS PESSOAIS
+          _buildSectionCard(
+            title: "Dados Pessoais & CNH",
             children: [
-              _buildImageUploadButton("CNH", _imgCnhPath, 'cnh'),
-              _buildImageUploadButton("RG (Frente)", _imgRgPath, 'rg'),
-              _buildImageUploadButton("CRLV (Veículo)", _imgCrlvPath, 'crlv'),
-              _buildImageUploadButton("ANTT", _imgAnttPath, 'antt'),
-              _buildImageUploadButton("Comp. Resid.", _imgCompEnderecoPath, 'comp_end'),
+              _buildCampoCustom(controller: _nomeCtrl, label: "Nome Completo", icon: Icons.person, validator: (v) => v!.isEmpty ? 'Obrigatório' : null),
+              Row(children: [
+                Expanded(child: _buildCampoCustom(controller: _cpfCtrl, label: "CPF", icon: Icons.badge, numberOnly: true, validator: (v) => v!.isEmpty ? 'Req' : null)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildCampoCustom(controller: _cnhCtrl, label: "CNH", icon: Icons.drive_eta, numberOnly: true, validator: (v) => v!.isEmpty ? 'Req' : null)),
+              ]),
+              Row(children: [
+                Expanded(child: _buildCampoCustom(controller: _categoriaCtrl, label: "Cat.", icon: Icons.category)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildCampoCustom(controller: _validadeCtrl, label: "Validade", icon: Icons.calendar_today, readOnly: true, onTap: () => _selecionarData(_validadeCtrl))),
+              ]),
             ],
           ),
+
+          // SEÇÃO 2: REGISTRO GERAL
+          _buildSectionCard(
+            title: "Registro Geral (RG)",
+            children: [
+              Row(children: [
+                Expanded(flex: 2, child: _buildCampoCustom(controller: _rgCtrl, label: "Número RG", icon: Icons.perm_identity, numberOnly: true)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildCampoCustom(controller: _rgUfCtrl, label: "UF", icon: Icons.map)),
+              ]),
+              Row(children: [
+                Expanded(child: _buildCampoCustom(controller: _rgOrgaoCtrl, label: "Órgão Exp.", icon: Icons.account_balance)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildCampoCustom(controller: _rgEmissaoCtrl, label: "Emissão", icon: Icons.calendar_month, readOnly: true, onTap: () => _selecionarData(_rgEmissaoCtrl))),
+              ]),
+            ],
+          ),
+
+          // SEÇÃO 3: PROFISSIONAL & ENDEREÇO
+          _buildSectionCard(
+            title: "Profissional & Endereço",
+            children: [
+              _buildCampoCustom(controller: _anttCtrl, label: "ANTT (Registro Nacional)", icon: Icons.local_shipping, numberOnly: true),
+              Row(children: [
+                Expanded(child: _buildCampoCustom(controller: _cepCtrl, label: "CEP", icon: Icons.pin_drop, numberOnly: true)),
+                const SizedBox(width: 10),
+                Expanded(flex: 2, child: _buildCampoCustom(controller: _cidadeUfCtrl, label: "Cidade/UF", icon: Icons.location_city)),
+              ]),
+              _buildCampoCustom(controller: _enderecoCtrl, label: "Endereço Completo", icon: Icons.home),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+          const Text("Anexos (Toque para adicionar)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 10),
+          
+          Wrap(spacing: 10, runSpacing: 10, children: [
+            _botaoAnexo('CNH', _imgCnhPath, 'cnh'),
+            _botaoAnexo('RG', _imgRgPath, 'rg'),
+            _botaoAnexo('CRLV', _imgCrlvPath, 'crlv'),
+            _botaoAnexo('ANTT', _imgAnttPath, 'antt'),
+          ]),
 
           const SizedBox(height: 30),
           SizedBox(
             width: double.infinity,
+            height: 55,
             child: ElevatedButton(
-              onPressed: _salvarDados,
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15), backgroundColor: Colors.blue),
-              child: const Text('SALVAR CADASTRO COMPLETO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              onPressed: _salvarDados, 
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[800],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 5,
+              ), 
+              child: const Text("SALVAR DADOS", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))
             ),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 50),
         ],
       ),
     );
   }
 
-  Widget _buildImageUploadButton(String label, String? path, String tipoDoc) {
-    bool temFoto = path != null && path.isNotEmpty && File(path).existsSync();
-
-    return InkWell(
-      onTap: () => _mostrarOpcoesFoto(tipoDoc),
-      child: Container(
-        decoration: BoxDecoration(
-          color: temFoto ? Colors.green.shade50 : Colors.grey.shade100,
-          border: Border.all(color: temFoto ? Colors.green : Colors.grey.shade400),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            temFoto 
-              ? const Icon(Icons.check_circle, color: Colors.green, size: 30)
-              : const Icon(Icons.add_a_photo, color: Colors.grey, size: 30),
-            const SizedBox(height: 4),
-            Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: temFoto ? Colors.green.shade800 : Colors.black54)),
-          ],
-        ),
-      ),
+  Widget _botaoAnexo(String label, String? path, String tipo) {
+    bool ok = path != null;
+    return ActionChip(
+      avatar: Icon(ok ? Icons.check_circle : Icons.add_a_photo, color: ok ? Colors.green : Colors.grey, size: 18),
+      label: Text(label, style: TextStyle(color: ok ? Colors.green[800] : Colors.black87, fontWeight: ok ? FontWeight.bold : FontWeight.normal)),
+      backgroundColor: ok ? Colors.green[50] : Colors.white,
+      side: BorderSide(color: ok ? Colors.green.shade200 : Colors.grey.shade300),
+      onPressed: () => _mostrarOpcoesFoto(tipo),
     );
   }
 
@@ -603,43 +491,53 @@ class _DriverIdPageState extends State<DriverIdPage> {
     return Column(
       children: [
         Container(
-          height: 220,
-          width: double.infinity,
+          height: 220, width: double.infinity,
           decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [Colors.blue.shade900, Colors.black]),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [const BoxShadow(color: Colors.black45, blurRadius: 10)],
+            gradient: LinearGradient(colors: [Colors.blue.shade900, Colors.black87], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [const BoxShadow(color: Colors.black26, blurRadius: 15, offset: Offset(0, 10))],
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  const Text("DRIVER ID", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                  if (_imgCnhPath != null) const Icon(Icons.verified, color: Colors.greenAccent),
-                ]),
-                const Spacer(),
-                Text(_nomeCtrl.text.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                Text("ANTT: ${_anttCtrl.text}", style: const TextStyle(color: Colors.white70)),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Stack(
+            children: [
+              Positioned(right: -20, top: -20, child: Icon(Icons.local_shipping, size: 150, color: Colors.white.withOpacity(0.05))),
+              Padding(
+                padding: const EdgeInsets.all(25),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("RG: ${_rgCtrl.text}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                    Text("CNH: ${_cnhCtrl.text}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text("DRIVER ID", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                      Icon(Icons.verified, color: Colors.greenAccent),
+                    ]),
+                    const Spacer(),
+                    Text(_nomeCtrl.text.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    const SizedBox(height: 5),
+                    Text("ANTT: ${_anttCtrl.text}", style: const TextStyle(color: Colors.white70, letterSpacing: 1)),
+                    const SizedBox(height: 15),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("RG: ${_rgCtrl.text}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        Text("CNH: ${_cnhCtrl.text}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      ],
+                    )
                   ],
-                )
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 30),
-        Row(children: [
-          Expanded(child: ElevatedButton.icon(onPressed: _salvarSeguro, icon: const Icon(Icons.share), label: const Text('Salvar/Compartilhar'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white))),
-          const SizedBox(width: 10),
-          Expanded(child: ElevatedButton.icon(onPressed: _visualizar, icon: const Icon(Icons.visibility), label: const Text('Ver Arquivo'), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white))),
-        ]),
+        ElevatedButton.icon(
+          onPressed: _salvarSeguro, 
+          icon: const Icon(Icons.share, color: Colors.white),
+          label: const Text("COMPARTILHAR PDF", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green[700], 
+            minimumSize: const Size(double.infinity, 55),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        )
       ],
     );
   }

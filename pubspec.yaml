@@ -10,53 +10,70 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations: # <--- IMPORTANTE PARA O CALENDÁRIO
+    sdk: flutter
 
+  # --- Armazenamento Local ---
+  shared_preferences: ^2.2.2
   sqflite: ^2.3.0
   path: ^1.9.0
-  intl: ^0.19.0
-  http: ^1.2.0
+  path_provider: ^2.1.2
+
+  # --- Funcionalidades do Sistema ---
+  image_picker: ^1.0.7       # Câmera e Galeria
+  permission_handler: ^11.3.0 # Permissões Android 13+
+  share_plus: ^10.0.0        # Compartilhar PDF
   url_launcher: ^6.2.5
-  font_awesome_flutter: ^10.7.0
-  mask_text_input_formatter: ^2.9.0
+  geolocator: ^10.1.0        # GPS
+
+  # --- PDF e Impressão ---
   pdf: ^3.10.7
   printing: ^5.12.0
-  flutter_typeahead: ^5.2.0
-  image_picker: ^1.0.7 # Adicionado para envio de documentos
+
+  # --- Mapas ---
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
-  geolocator: ^10.1.0
+
+  # --- Utilitários e Segurança ---
+  intl: ^0.20.2  # <--- ATUALIZADO (Correção do erro)
   uuid: ^4.3.3
   encrypt: ^5.0.3
-  path_provider: ^2.1.2
-  permission_handler: ^11.3.0
+  http: ^1.2.0
+  mask_text_input_formatter: ^2.9.0
+  flutter_typeahead: ^5.2.0
 
+  # --- UI e Ícones ---
+  font_awesome_flutter: ^10.7.0
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
-  flutter_launcher_icons: ^0.14.4
-  flutter_native_splash: ^2.4.7
+  flutter_lints: ^3.0.0 # Mantive no 3.0.0 pois o 6.0.0 as vezes pede Dart > 3.2
+  
+  # Ferramentas de geração (só rodam no PC do dev)
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
   flutter_dynamic_launcher_icon: ^0.0.2
-  shared_preferences: ^2.2.2
 
+# --- Configuração do Ícone do App ---
 flutter_icons:
   image_path: android/app/src/main/res/drawable/icone_app.png
   ios: true
   remove_alpha_ios: true
   android: "flutter_launcher_icons"
-  adaptative_icon_background: "rgb(4, 87, 240)" 
-  adaptative_icon_foreground: android/app/src/main/res/drawable/icone_app_transparente.png
+  adaptive_icon_background: "#0457F0" 
+  adaptive_icon_foreground: android/app/src/main/res/drawable/icone_app_transparente.png
   min_sdk_android: 21
+
+# --- Configuração da Tela de Abertura (Splash) ---
+flutter_native_splash: 
+  color: "#1E88E5"
+  image: android/app/src/main/res/drawable/icone_splash.png
+  android: true
+  ios: true
 
 flutter:
   uses-material-design: true
   assets:
     - lib/utils/assets/cidades.txt
-
-flutter_native_splash: 
-    color: "#1E88E5"
-    image: android/app/src/main/res/drawable/icone_splash.png
-    android: true
-    ios: true

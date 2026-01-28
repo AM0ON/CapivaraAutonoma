@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // <--- IMPORTANTE PARA O CALENDÁRIO
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Importa a nova Home
+// Importa as páginas
 import 'pages/hub_page.dart';
 import 'pages/minha_conta_page.dart';
 import 'pages/configuracoes_page.dart';
@@ -59,6 +60,18 @@ class _MyAppState extends State<MyApp> {
       themeMode: modoTema,
       theme: temaClaro,
       darkTheme: temaEscuro,
+      
+      // --- CONFIGURAÇÃO DE IDIOMA (PARA O CALENDÁRIO FUNCIONAR) ---
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'), // Define Português do Brasil como padrão
+      ],
+      // -------------------------------------------------------------
+
       home: MainPage(
         modoTema: modoTema,
         onAlterarTema: alternarTema,
@@ -115,6 +128,7 @@ class _MainPageState extends State<MainPage> {
       context,
       MaterialPageRoute(builder: (_) => const MinhaContaPage()),
     );
+    // Se voltou da tela de conta, recarrega a foto e nome no menu
     if (atualizou == true) await _carregarPerfilMenu();
   }
 
@@ -133,7 +147,6 @@ class _MainPageState extends State<MainPage> {
 
     return Scaffold(
       // O Drawer (Menu Lateral) fica aqui no nível principal
-      // Assim ele aparece na HubPage (Home)
       drawer: Drawer(
         child: SafeArea(
           child: Column(
@@ -202,7 +215,7 @@ class _MainPageState extends State<MainPage> {
         ),
       ),
       
-      // A GRANDE MUDANÇA: O corpo agora é a HubPage
+      // O corpo agora é a HubPage (Menu Grid)
       body: const HubPage(),
     );
   }
