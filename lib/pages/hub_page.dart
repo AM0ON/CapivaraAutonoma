@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// --- IMPORTS DAS FUNCIONALIDADES ---
 import 'financeiro_wrapper.dart';
 import 'driver_id_page.dart';
-import 'minha_conta_page.dart';    // Importante!
-import 'configuracoes_page.dart';  // Importante!
+import 'minha_conta_page.dart';
+import 'configuracoes_page.dart';
+import 'mapas_page.dart';   // <--- Agora conecta aqui
+import 'grupos_page.dart';  // <--- E aqui
 
 class HubPage extends StatefulWidget {
   const HubPage({super.key});
@@ -48,7 +52,7 @@ class _HubPageState extends State<HubPage> {
         centerTitle: true,
       ),
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -58,7 +62,7 @@ class _HubPageState extends State<HubPage> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Painel de Controle', // Texto atualizado para combinar com "Ajustes"
+              'Painel de Controle',
               style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
             const SizedBox(height: 24),
@@ -70,8 +74,7 @@ class _HubPageState extends State<HubPage> {
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 childAspectRatio: 0.85, 
-                // Precisamos de scroll se a tela for pequena
-                padding: const EdgeInsets.only(bottom: 20), 
+                padding: const EdgeInsets.only(bottom: 20),
                 children: [
                   // 1. Financeiro
                   _CardHub(
@@ -101,42 +104,50 @@ class _HubPageState extends State<HubPage> {
                     },
                   ),
 
-                  // 5. Mapas (Em Breve)
+                  // 3. Mapas (CONECTADO ✅)
                   _CardHub(
-                    titulo: 'Mapas',
-                    icone: Icons.map_outlined,
+                    titulo: 'Mapa e Paradas',
+                    icone: Icons.map_outlined, // Ícone atualizado
                     cor: Colors.orange,
-                    descricao: '(Em Breve)',
-                    isComingSoon: true,
-                    onTap: () => _avisoEmBreve(context, 'Mapas'),
+                    descricao: 'Rotas e Postos',
+                    onTap: () {
+                       Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MapasPage()),
+                      );
+                    },
                   ),
 
-                  // 6. Grupos (Em Breve)
+                  // 4. Grupos (CONECTADO ✅)
                   _CardHub(
                     titulo: 'Grupos',
                     icone: Icons.groups_outlined,
                     cor: Colors.purple,
-                    descricao: '(Em Breve)',
-                    isComingSoon: true,
-                    onTap: () => _avisoEmBreve(context, 'Grupos'),
+                    descricao: 'Contatos Úteis',
+                    onTap: () {
+                       Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const GruposPage()),
+                      );
+                    },
                   ),
-                 // 3. Minha Conta (NOVO)
+
+                  // 5. Minha Conta
                   _CardHub(
                     titulo: 'Minha Conta',
                     icone: Icons.person,
                     cor: Colors.pinkAccent,
                     descricao: 'Perfil e Foto',
                     onTap: () async {
-                      // Usamos await para recarregar o nome ao voltar
                       await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const MinhaContaPage()),
                       );
-                      _carregarNome(); // Atualiza a saudação se mudou o nome
+                      _carregarNome();
                     },
                   ),
 
-                  // 4. Ajustes (NOVO)
+                  // 6. Ajustes
                   _CardHub(
                     titulo: 'Ajustes',
                     icone: Icons.settings,
@@ -149,22 +160,11 @@ class _HubPageState extends State<HubPage> {
                       );
                     },
                   ),
-
                 ],
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _avisoEmBreve(BuildContext context, String func) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Segura a ansiedade! O módulo "$func" chega na próxima atualização. 🚀'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }
