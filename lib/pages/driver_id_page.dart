@@ -216,24 +216,43 @@ class _DriverIdPageState extends State<DriverIdPage> {
     } catch (e) { debugPrint("Erro foto: $e"); }
   }
 
-  // --- PDF GENERATOR ---
+  // --- PDF GENERATOR MULTI-PÁGINAS COM AVISO LEGAL ⚖️📄 ---
   Future<Uint8List> _gerarBytesPDF() async {
     final pdf = pw.Document();
     final dataGeracao = "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}";
 
+    // Função auxiliar para desenhar linhas de dados
+    pw.Widget _pwRowData(String label, String value) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 5),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.SizedBox(width: 110, child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))),
+            pw.Expanded(child: pw.Text(value, style: const pw.TextStyle(fontSize: 10))),
+          ],
+        ),
+      );
+    }
+
+    // 1. PRIMEIRA PÁGINA: DADOS CADASTRAIS (CAPA)
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a4, 
+        pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
+              // Cabeçalho
               pw.Header(level: 0, child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text("FICHA CADASTRAL", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
-                pw.Text("Emissão: $dataGeracao", style: const pw.TextStyle(color: PdfColors.grey)),
+                pw.Text("FICHA CADASTRAL DO MOTORISTA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+                pw.Text("Gerado em: $dataGeracao", style: const pw.TextStyle(color: PdfColors.grey)),
               ])),
+              
               pw.SizedBox(height: 20),
+
+              // O Crachá (Visual Bonito)
               pw.Center(
                 child: pw.Container(
                   width: 8.56 * PdfPageFormat.cm,
@@ -242,52 +261,142 @@ class _DriverIdPageState extends State<DriverIdPage> {
                   decoration: pw.BoxDecoration(border: pw.Border.all(), borderRadius: pw.BorderRadius.circular(4), color: PdfColors.grey100),
                   child: pw.Row(children: [
                     pw.Column(mainAxisAlignment: pw.MainAxisAlignment.center, children: [
-                      pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: "ID:${_cnhCtrl.text}", width: 35, height: 35),
+                      pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: "ID:${_cnhCtrl.text}|CPF:${_cpfCtrl.text}", width: 35, height: 35),
                     ]),
                     pw.SizedBox(width: 8),
                     pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, mainAxisAlignment: pw.MainAxisAlignment.center, children: [
-                      pw.Text("MOTORISTA PROFISSIONAL", style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                      pw.Text("MOTORISTA AUTÔNOMO", style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                       pw.Divider(thickness: 0.5),
                       pw.Text(_nomeCtrl.text.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                      pw.Text("CNH: ${_cnhCtrl.text} | RG: ${_rgCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
+                      pw.Text("CNH: ${_cnhCtrl.text} | CAT: ${_categoriaCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
                     ])),
                   ]),
                 ),
               ),
+              
               pw.SizedBox(height: 30),
-              _pwRowData("Nome:", _nomeCtrl.text),
+
+              // Bloco 1: Identificação
+              pw.Text("1. IDENTIFICAÇÃO PESSOAL", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.blue800)),
+              pw.Divider(thickness: 0.5),
+              _pwRowData("Nome Completo:", _nomeCtrl.text),
               _pwRowData("CPF:", _cpfCtrl.text),
+              _pwRowData("RG:", _rgCtrl.text),
+              _pwRowData("Órgão Emissor/UF:", "${_rgOrgaoCtrl.text} / ${_rgUfCtrl.text}"),
+              _pwRowData("Data de Emissão:", _rgEmissaoCtrl.text),
+
+              pw.SizedBox(height: 15),
+
+              // Bloco 2: Habilitação e Profissional
+              pw.Text("2. DADOS PROFISSIONAIS", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.blue800)),
+              pw.Divider(thickness: 0.5),
               _pwRowData("CNH:", _cnhCtrl.text),
-              _pwRowData("Validade:", _validadeCtrl.text),
+              _pwRowData("Categoria:", _categoriaCtrl.text),
+              _pwRowData("Validade CNH:", _validadeCtrl.text),
+              _pwRowData("Registro ANTT:", _anttCtrl.text.isEmpty ? "Não Informado" : _anttCtrl.text),
+
+              pw.SizedBox(height: 15),
+
+              // Bloco 3: Endereço
+              pw.Text("3. LOCALIZAÇÃO", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.blue800)),
+              pw.Divider(thickness: 0.5),
+              _pwRowData("Endereço:", _enderecoCtrl.text),
+              _pwRowData("Cidade / UF:", _cidadeUfCtrl.text),
+              _pwRowData("CEP:", _cepCtrl.text),
+
               pw.Spacer(),
-              pw.Divider(),
-              pw.Center(child: pw.Text("AzorTech Software Solutions - Documento Digital Seguro", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey))),
+              
+              // --- MENSAGEM JURÍDICA (DISCLAIMER) ---
+              pw.Divider(thickness: 0.5, color: PdfColors.grey400),
+              pw.Container(
+                padding: const pw.EdgeInsets.all(5),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                     pw.Text(
+                      "AVISO LEGAL: Este documento foi gerado digitalmente pelo aplicativo Capivara Loka a pedido do usuário.",
+                      style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700),
+                      textAlign: pw.TextAlign.center
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      "A veracidade das informações e a autenticidade das cópias dos documentos anexados são de inteira e exclusiva responsabilidade do portador deste documento (Art. 299 do Código Penal Brasileiro). O aplicativo não realiza validação cartorial dos dados.",
+                      style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey600),
+                      textAlign: pw.TextAlign.center
+                    ),
+                  ]
+                )
+              ),
             ],
           );
         },
       ),
     );
-    return await pdf.save();
-  }
 
-  pw.Widget _pwRowData(String label, String value) {
-    return pw.Padding(padding: const pw.EdgeInsets.only(bottom: 5), child: pw.Row(children: [
-      pw.SizedBox(width: 80, child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))),
-      pw.Expanded(child: pw.Text(value, style: const pw.TextStyle(fontSize: 10))),
-    ]));
+    // 2. PÁGINAS DE ANEXOS (Loop Inteligente) 📸
+    final listaAnexos = [
+      {'titulo': 'CARTEIRA DE HABILITAÇÃO (CNH)', 'caminho': _imgCnhPath},
+      {'titulo': 'REGISTRO GERAL (RG)', 'caminho': _imgRgPath},
+      {'titulo': 'DOCUMENTO DO VEÍCULO (CRLV)', 'caminho': _imgCrlvPath},
+      {'titulo': 'REGISTRO ANTT', 'caminho': _imgAnttPath},
+      {'titulo': 'COMPROVANTE DE ENDEREÇO', 'caminho': _imgCompEnderecoPath},
+    ];
+
+    for (var doc in listaAnexos) {
+      final caminho = doc['caminho'];
+      final titulo = doc['titulo'];
+
+      if (caminho != null && caminho.isNotEmpty && File(caminho).existsSync()) {
+        final imageBytes = File(caminho).readAsBytesSync();
+
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.all(40),
+            build: (pw.Context context) {
+              return pw.Column(
+                children: [
+                  pw.Header(level: 0, child: pw.Text("ANEXO: $titulo", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14))),
+                  pw.SizedBox(height: 20),
+                  pw.Expanded(
+                    child: pw.Center(
+                      child: pw.Container(
+                        decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey300)),
+                        child: pw.Image(
+                          pw.MemoryImage(imageBytes),
+                          fit: pw.BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Text("Cópia Digital - Anexo ao Driver ID", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey)),
+                ],
+              );
+            },
+          ),
+        );
+      }
+    }
+
+    return await pdf.save();
   }
 
   Future<void> _salvarSeguro() async {
     try {
       setState(() => _carregando = true);
       final bytes = await _gerarBytesPDF();
+      
       final tempDir = await getTemporaryDirectory();
       final nomeArquivo = 'DriverID_${_nomeCtrl.text.trim().replaceAll(" ", "_")}.pdf';
       final file = File('${tempDir.path}/$nomeArquivo');
       await file.writeAsBytes(bytes);
 
       setState(() => _carregando = false);
-      await Share.shareXFiles([XFile(file.path)], text: 'Segue meu Driver ID atualizado.');
+      
+      // Compartilha o arquivo
+      await Share.shareXFiles([XFile(file.path)], text: 'Segue em anexo meu Driver ID atualizado (PDF).');
+    
     } catch (e) {
       debugPrint("ERRO PDF: $e");
       setState(() => _carregando = false);
@@ -301,7 +410,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
     if (_carregando) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      backgroundColor: Colors.grey[100], // Fundo leve
+      backgroundColor: Colors.grey[100], 
       appBar: AppBar(
         title: const Text('Driver ID'),
         backgroundColor: Colors.blue[900],
@@ -319,7 +428,7 @@ class _DriverIdPageState extends State<DriverIdPage> {
     );
   }
 
-  // --- WIDGET DE CAMPO ESTILIZADO (O SEGREDO DA BELEZA) 🎨 ---
+  // --- WIDGET DE CAMPO ESTILIZADO 🎨 ---
   Widget _buildCampoCustom({
     required TextEditingController controller,
     required String label,
@@ -344,24 +453,12 @@ class _DriverIdPageState extends State<DriverIdPage> {
           prefixIcon: Icon(icon, color: Colors.blue[800], size: 22),
           filled: true,
           fillColor: Colors.white,
-          isDense: true, // Deixa mais compacto
+          isDense: true, 
           contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none, // Sem borda quando inativo
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.blue.shade800, width: 2),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.red, width: 1),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300, width: 1)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.blue.shade800, width: 2)),
+          errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.red, width: 1)),
         ),
       ),
     );
@@ -396,7 +493,6 @@ class _DriverIdPageState extends State<DriverIdPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // SEÇÃO 1: DADOS PESSOAIS
           _buildSectionCard(
             title: "Dados Pessoais & CNH",
             children: [
@@ -414,7 +510,6 @@ class _DriverIdPageState extends State<DriverIdPage> {
             ],
           ),
 
-          // SEÇÃO 2: REGISTRO GERAL
           _buildSectionCard(
             title: "Registro Geral (RG)",
             children: [
@@ -431,7 +526,6 @@ class _DriverIdPageState extends State<DriverIdPage> {
             ],
           ),
 
-          // SEÇÃO 3: PROFISSIONAL & ENDEREÇO
           _buildSectionCard(
             title: "Profissional & Endereço",
             children: [
