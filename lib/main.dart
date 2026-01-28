@@ -1,13 +1,12 @@
-import 'dart:io'; // Necessário para File
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Necessário para carregar o menu
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'pages/home_page.dart';
-import 'pages/novo_frete_page.dart';
-import 'pages/relatorio_page.dart';
-import 'pages/premium.dart';
+// Importa a nova Home
+import 'pages/hub_page.dart';
 import 'pages/minha_conta_page.dart';
 import 'pages/configuracoes_page.dart';
+import 'pages/premium.dart';
 
 void main() {
   runApp(const MyApp());
@@ -31,14 +30,17 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Configurações visuais (Cores, estilo de cards, etc)
     final temaClaro = ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       colorSchemeSeed: Colors.blue,
       scaffoldBackgroundColor: const Color(0xFFF6F6FA),
       cardColor: Colors.white,
-      appBarTheme: const AppBarTheme(
-        surfaceTintColor: Colors.transparent,
+      appBarTheme: const AppBarTheme(surfaceTintColor: Colors.transparent),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.white,
+        indicatorColor: Colors.blue.withOpacity(0.2),
       ),
     );
 
@@ -48,13 +50,12 @@ class _MyAppState extends State<MyApp> {
       colorSchemeSeed: Colors.blue,
       scaffoldBackgroundColor: const Color(0xFF0E1116),
       cardColor: const Color(0xFF151A22),
-      appBarTheme: const AppBarTheme(
-        surfaceTintColor: Colors.transparent,
-      ),
+      appBarTheme: const AppBarTheme(surfaceTintColor: Colors.transparent),
     );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'Capivara Loka',
       themeMode: modoTema,
       theme: temaClaro,
       darkTheme: temaEscuro,
@@ -81,47 +82,23 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  int index = 0;
-  
-  // Controlador para atualizar a Home quando um frete é salvo
-  final _homeController = HomeRefreshController();
-
-  // Dados do Menu Lateral (Drawer)
+  // Dados do Menu Lateral (Perfil)
   String nomeUsuario = 'Visitante';
   String emailUsuario = '';
   File? fotoPerfilFile;
 
-  late final List<Widget> pages = [
-    HomePage(
-      onAddFrete: () {
-        setState(() => index = 1);
-      },
-      controller: _homeController,
-    ),
-    NovoFretePage(
-      onSaved: () {
-        _homeController.refresh(); // Atualiza a lista da Home
-        setState(() => index = 0); // Volta para a tela inicial
-      },
-    ),
-    const RelatorioPage(),
-  ];
-
   @override
   void initState() {
     super.initState();
-    _carregarPerfilMenu(); // Carrega os dados do Drawer ao iniciar
+    _carregarPerfilMenu();
   }
 
-  // Busca nome/foto salvos no SharedPreferences para exibir no Drawer
   Future<void> _carregarPerfilMenu() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    
     setState(() {
       nomeUsuario = prefs.getString('perfil_nome') ?? 'Visitante';
       if (nomeUsuario.isEmpty) nomeUsuario = 'Visitante';
-      
       emailUsuario = prefs.getString('perfil_email') ?? '';
       
       final path = prefs.getString('perfil_foto');
@@ -133,44 +110,20 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
-  String get title {
-    if (index == 0) return 'Fretes';
-    if (index == 1) return 'Novo Frete';
-    if (index == 2) return 'Relatório';
-    return 'Capivara Loka';
-  }
-
   Future<void> abrirMinhaConta() async {
-    // CORREÇÃO: Chamada sem parâmetros, pois a página carrega internamente
     final atualizou = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const MinhaContaPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const MinhaContaPage()),
     );
-
-    // Se houve alteração no perfil, recarrega o menu lateral
-    if (atualizou == true) {
-      await _carregarPerfilMenu();
-    }
+    if (atualizou == true) await _carregarPerfilMenu();
   }
 
   Future<void> abrirConfiguracoes() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ConfiguracoesPage(),
-      ),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfiguracoesPage()));
   }
 
   Future<void> abrirPremium() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const PremiumPage(),
-      ),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const PremiumPage()));
   }
 
   @override
@@ -179,9 +132,8 @@ class _MainPageState extends State<MainPage> {
     final corPrimaria = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
+      // O Drawer (Menu Lateral) fica aqui no nível principal
+      // Assim ele aparece na HubPage (Home)
       drawer: Drawer(
         child: SafeArea(
           child: Column(
@@ -193,13 +145,8 @@ class _MainPageState extends State<MainPage> {
                     CircleAvatar(
                       radius: 26,
                       backgroundColor: corPrimaria.withOpacity(0.15),
-                      // Lógica de exibição da foto: Arquivo Local > Ícone Padrão
-                      backgroundImage: fotoPerfilFile != null 
-                          ? FileImage(fotoPerfilFile!) 
-                          : null,
-                      child: fotoPerfilFile == null
-                          ? Icon(Icons.person, color: corPrimaria)
-                          : null,
+                      backgroundImage: fotoPerfilFile != null ? FileImage(fotoPerfilFile!) : null,
+                      child: fotoPerfilFile == null ? Icon(Icons.person, color: corPrimaria) : null,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -210,23 +157,12 @@ class _MainPageState extends State<MainPage> {
                             nomeUsuario,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             emailUsuario.isEmpty ? 'Não logado' : emailUsuario,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.color
-                                  ?.withOpacity(0.7),
-                            ),
+                            style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7)),
                           ),
                         ],
                       ),
@@ -238,26 +174,17 @@ class _MainPageState extends State<MainPage> {
               ListTile(
                 leading: const Icon(Icons.person_outline),
                 title: const Text('Minha Conta'),
-                onTap: () {
-                  Navigator.pop(context);
-                  abrirMinhaConta();
-                },
+                onTap: () { Navigator.pop(context); abrirMinhaConta(); },
               ),
               ListTile(
                 leading: const Icon(Icons.settings_outlined),
                 title: const Text('Configurações'),
-                onTap: () {
-                  Navigator.pop(context);
-                  abrirConfiguracoes();
-                },
+                onTap: () { Navigator.pop(context); abrirConfiguracoes(); },
               ),
               ListTile(
                 leading: const Icon(Icons.workspace_premium_outlined),
                 title: const Text('Seja VIP'),
-                onTap: () {
-                  Navigator.pop(context);
-                  abrirPremium();
-                },
+                onTap: () { Navigator.pop(context); abrirPremium(); },
               ),
               const Spacer(),
               const Divider(height: 1),
@@ -274,10 +201,9 @@ class _MainPageState extends State<MainPage> {
           ),
         ),
       ),
-      body: IndexedStack(
-        index: index,
-        children: pages,
-      ),
+      
+      // A GRANDE MUDANÇA: O corpo agora é a HubPage
+      body: const HubPage(),
     );
   }
 }
