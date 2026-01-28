@@ -1,11 +1,14 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart'; // <--- Necessário para bloquear letras
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-
-import '../database/frete_database.dart';
-import '../models/motorista.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import '../services/driver_security_service.dart';
 
 class DriverIdPage extends StatefulWidget {
   const DriverIdPage({super.key});
@@ -15,23 +18,35 @@ class DriverIdPage extends StatefulWidget {
 }
 
 class _DriverIdPageState extends State<DriverIdPage> {
-  final FreteDatabase _db = FreteDatabase.instance;
+  final DriverSecurityService _securityService = DriverSecurityService();
   final ImagePicker _picker = ImagePicker();
+  
+  final _formKey = GlobalKey<FormState>();
 
-  bool _loading = true;
-  bool _editando = false;
+  // --- CONTROLADORES ---
+  final _nomeCtrl = TextEditingController();
+  final _cpfCtrl = TextEditingController();
+  final _cnhCtrl = TextEditingController();
+  final _categoriaCtrl = TextEditingController();
+  final _validadeCtrl = TextEditingController();
+  final _rgCtrl = TextEditingController();
+  final _rgEmissaoCtrl = TextEditingController();
+  final _rgOrgaoCtrl = TextEditingController(); 
+  final _rgUfCtrl = TextEditingController();
+  final _anttCtrl = TextEditingController();
+  final _cepCtrl = TextEditingController();
+  final _enderecoCtrl = TextEditingController();
+  final _cidadeUfCtrl = TextEditingController();
 
-  final _nomeController = TextEditingController();
-  final _rgController = TextEditingController();
-  final _cpfController = TextEditingController();
-  final _cnhController = TextEditingController();
-  final _enderecoController = TextEditingController(); // Novo Controller
+  // --- CAMINHOS DAS IMAGENS ---
+  String? _imgCnhPath;
+  String? _imgCrlvPath;
+  String? _imgRgPath;
+  String? _imgCompEnderecoPath;
+  String? _imgAnttPath;
 
-  File? _fotoRosto;
-  File? _fotoCnh;
-  File? _fotoComprovante;
-
-  Motorista? _motoristaSalvo;
+  bool _temDados = false;
+  bool _carregando = true;
 
   @override
   void initState() {
@@ -39,306 +54,507 @@ class _DriverIdPageState extends State<DriverIdPage> {
     _carregarDados();
   }
 
-  Future<void> _carregarDados() async {
-    setState(() => _loading = true);
-    final motorista = await _db.getMotorista();
-
-    if (motorista != null) {
-      _motoristaSalvo = motorista;
-      _nomeController.text = motorista.nome ?? '';
-      _rgController.text = motorista.rg ?? '';
-      _cpfController.text = motorista.cpf ?? '';
-      _cnhController.text = motorista.cnh ?? '';
-      _enderecoController.text = motorista.endereco ?? '';
-
-      if (motorista.fotoRosto != null) _fotoRosto = File(motorista.fotoRosto!);
-      if (motorista.fotoCnh != null) _fotoCnh = File(motorista.fotoCnh!);
-      if (motorista.fotoComprovante != null) _fotoComprovante = File(motorista.fotoComprovante!);
-      
-      _editando = false;
-    } else {
-      _editando = true;
-    }
-
-    setState(() => _loading = false);
-  }
-
-  Future<void> _salvar() async {
-    if (_nomeController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha pelo menos o Nome.')));
-      return;
-    }
-
-    final novoMotorista = Motorista(
-      id: _motoristaSalvo?.id,
-      nome: _nomeController.text,
-      rg: _rgController.text,
-      cpf: _cpfController.text,
-      cnh: _cnhController.text,
-      endereco: _enderecoController.text,
-      fotoRosto: _fotoRosto?.path,
-      fotoCnh: _fotoCnh?.path,
-      fotoComprovante: _fotoComprovante?.path,
+  // --- DATE PICKER ---
+  Future<void> _selecionarData(TextEditingController controller) async {
+    FocusScope.of(context).requestFocus(FocusNode());
+    DateTime? dataEscolhida = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1950),
+      lastDate: DateTime(2040),
     );
 
-    await _db.salvarMotorista(novoMotorista);
-    await _carregarDados();
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dados salvos com sucesso!')));
-    }
-  }
-
-  Future<void> _selecionarImagem(String tipo) async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
+    if (dataEscolhida != null) {
+      String dia = dataEscolhida.day.toString().padLeft(2, '0');
+      String mes = dataEscolhida.month.toString().padLeft(2, '0');
+      String ano = dataEscolhida.year.toString();
       setState(() {
-        if (tipo == 'rosto') _fotoRosto = File(picked.path);
-        if (tipo == 'cnh') _fotoCnh = File(picked.path);
-        if (tipo == 'comp') _fotoComprovante = File(picked.path);
+        controller.text = "$dia/$mes/$ano";
       });
     }
   }
 
-  Future<void> _gerarPdf() async {
-    final pdf = pw.Document();
+  // 1. CARREGAR
+  Future<void> _carregarDados() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _nomeCtrl.text = prefs.getString('doc_nome') ?? prefs.getString('perfil_nome') ?? '';
+      _cpfCtrl.text = prefs.getString('doc_cpf') ?? ''; 
+      _cnhCtrl.text = prefs.getString('doc_cnh') ?? '';
+      _categoriaCtrl.text = prefs.getString('doc_categoria') ?? '';
+      _validadeCtrl.text = prefs.getString('doc_validade') ?? '';
+      _rgCtrl.text = prefs.getString('doc_rg') ?? '';
+      _rgEmissaoCtrl.text = prefs.getString('doc_rg_emissao') ?? '';
+      _rgOrgaoCtrl.text = prefs.getString('doc_rg_orgao') ?? '';
+      _rgUfCtrl.text = prefs.getString('doc_rg_uf') ?? '';
+      _anttCtrl.text = prefs.getString('doc_antt') ?? '';
+      _cepCtrl.text = prefs.getString('doc_cep') ?? '';
+      _enderecoCtrl.text = prefs.getString('doc_endereco') ?? '';
+      _cidadeUfCtrl.text = prefs.getString('doc_cidade_uf') ?? '';
 
-    final imageRosto = _fotoRosto != null ? pw.MemoryImage(_fotoRosto!.readAsBytesSync()) : null;
-    final imageCnh = _fotoCnh != null ? pw.MemoryImage(_fotoCnh!.readAsBytesSync()) : null;
-    final imageComp = _fotoComprovante != null ? pw.MemoryImage(_fotoComprovante!.readAsBytesSync()) : null;
+      _imgCnhPath = prefs.getString('img_cnh');
+      _imgCrlvPath = prefs.getString('img_crlv');
+      _imgRgPath = prefs.getString('img_rg');
+      _imgCompEnderecoPath = prefs.getString('img_comp_end');
+      _imgAnttPath = prefs.getString('img_antt');
+
+      _temDados = _cnhCtrl.text.isNotEmpty && _nomeCtrl.text.isNotEmpty;
+      _carregando = false;
+    });
+  }
+
+  // 2. SALVAR
+  Future<void> _salvarDados() async {
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Preencha os campos obrigatórios (*)')));
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('doc_nome', _nomeCtrl.text);
+    await prefs.setString('doc_cpf', _cpfCtrl.text);
+    await prefs.setString('doc_cnh', _cnhCtrl.text);
+    await prefs.setString('doc_categoria', _categoriaCtrl.text);
+    await prefs.setString('doc_validade', _validadeCtrl.text);
+    await prefs.setString('doc_rg', _rgCtrl.text);
+    await prefs.setString('doc_rg_emissao', _rgEmissaoCtrl.text);
+    await prefs.setString('doc_rg_orgao', _rgOrgaoCtrl.text);
+    await prefs.setString('doc_rg_uf', _rgUfCtrl.text);
+    await prefs.setString('doc_antt', _anttCtrl.text);
+    await prefs.setString('doc_cep', _cepCtrl.text);
+    await prefs.setString('doc_endereco', _enderecoCtrl.text);
+    await prefs.setString('doc_cidade_uf', _cidadeUfCtrl.text);
+
+    if (_imgCnhPath != null) await prefs.setString('img_cnh', _imgCnhPath!);
+    if (_imgCrlvPath != null) await prefs.setString('img_crlv', _imgCrlvPath!);
+    if (_imgRgPath != null) await prefs.setString('img_rg', _imgRgPath!);
+    if (_imgCompEnderecoPath != null) await prefs.setString('img_comp_end', _imgCompEnderecoPath!);
+    if (_imgAnttPath != null) await prefs.setString('img_antt', _imgAnttPath!);
+
+    setState(() => _temDados = true);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cadastro completo salvo com sucesso! 🚛✅')));
+    }
+  }
+
+  // --- FOTOS ---
+  void _mostrarOpcoesFoto(String tipoDoc) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Escolha a origem", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt, color: Colors.blue, size: 30),
+                  title: const Text("Tirar Foto"),
+                  onTap: () { Navigator.pop(context); _processarImagem(tipoDoc, ImageSource.camera); },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library, color: Colors.green, size: 30),
+                  title: const Text("Galeria"),
+                  onTap: () { Navigator.pop(context); _processarImagem(tipoDoc, ImageSource.gallery); },
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    );
+  }
+
+  Future<void> _processarImagem(String tipoDoc, ImageSource origem) async {
+    try {
+      final XFile? foto = await _picker.pickImage(source: origem, imageQuality: 50);
+      if (foto == null) return;
+      final directory = await getApplicationDocumentsDirectory();
+      final String novoPath = '${directory.path}/${tipoDoc}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await foto.saveTo(novoPath);
+      setState(() {
+        switch (tipoDoc) {
+          case 'cnh': _imgCnhPath = novoPath; break;
+          case 'crlv': _imgCrlvPath = novoPath; break;
+          case 'rg': _imgRgPath = novoPath; break;
+          case 'comp_end': _imgCompEnderecoPath = novoPath; break;
+          case 'antt': _imgAnttPath = novoPath; break;
+        }
+      });
+    } catch (e) { debugPrint('Erro na foto: $e'); }
+  }
+
+  // --- PDF ---
+  Future<Uint8List> _gerarBytesPDF() async {
+    final pdf = pw.Document();
+    final dataGeracao = "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}";
 
     pdf.addPage(
       pw.Page(
+        pageFormat: PdfPageFormat.a4, 
+        margin: const pw.EdgeInsets.all(40),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Header(level: 0, child: pw.Text('DRIVER ID - ${_nomeController.text}')),
+              pw.Header(
+                level: 0,
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text("FICHA CADASTRAL DO MOTORISTA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+                    pw.Text("Emissão: $dataGeracao", style: const pw.TextStyle(color: PdfColors.grey)),
+                  ],
+                ),
+              ),
               pw.SizedBox(height: 20),
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  if (imageRosto != null)
-                    pw.Container(
-                      width: 100,
-                      height: 100,
-                      decoration: pw.BoxDecoration(
-                        shape: pw.BoxShape.circle,
-                        image: pw.DecorationImage(image: imageRosto, fit: pw.BoxFit.cover),
-                      ),
-                    ),
-                  pw.SizedBox(width: 20),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+              pw.Center(
+                child: pw.Container(
+                  width: 8.56 * PdfPageFormat.cm,
+                  height: 5.4 * PdfPageFormat.cm,
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(),
+                    borderRadius: pw.BorderRadius.circular(4),
+                    color: PdfColors.grey100, 
+                  ),
+                  child: pw.Row(
                     children: [
-                      pw.Text('Nome: ${_nomeController.text}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
-                      pw.Text('CPF: ${_cpfController.text}'),
-                      pw.Text('RG: ${_rgController.text}'),
-                      pw.Text('CNH: ${_cnhController.text}'),
-                      pw.Text('Endereço: ${_enderecoController.text}'), // Adicionado no PDF
+                      pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        children: [
+                          pw.BarcodeWidget(
+                            barcode: pw.Barcode.qrCode(),
+                            data: "DriverID:${_cnhCtrl.text}|CPF:${_cpfCtrl.text}|Valid:${_validadeCtrl.text}",
+                            width: 35, height: 35,
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text("ANTT", style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey)),
+                          pw.Text(_anttCtrl.text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                        ],
+                      ),
+                      pw.SizedBox(width: 8),
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          mainAxisAlignment: pw.MainAxisAlignment.center,
+                          children: [
+                            pw.Text("MOTORISTA PROFISSIONAL", style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                            pw.Divider(thickness: 0.5),
+                            pw.Text(_nomeCtrl.text.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            pw.Row(children: [
+                              pw.Text("CNH: ${_cnhCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
+                              pw.SizedBox(width: 5),
+                              pw.Text("CAT: ${_categoriaCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
+                            ]),
+                            pw.Text("RG: ${_rgCtrl.text} ${_rgOrgaoCtrl.text}/${_rgUfCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
+                            pw.Text("CPF: ${_cpfCtrl.text}", style: const pw.TextStyle(fontSize: 6)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
               pw.SizedBox(height: 30),
-              pw.Text('Documentos Anexados:', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              pw.Text("DETALHES DA DOCUMENTAÇÃO", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
               pw.Divider(),
               pw.SizedBox(height: 10),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                children: [
-                  if (imageCnh != null)
-                    pw.Column(children: [
-                      pw.Text('CNH Digital'),
-                      pw.SizedBox(height: 5),
-                      pw.Image(imageCnh, width: 200),
-                    ]),
-                  if (imageComp != null)
-                    pw.Column(children: [
-                      pw.Text('Comprovante Residência'),
-                      pw.SizedBox(height: 5),
-                      pw.Image(imageComp, width: 200),
-                    ]),
-                ],
+              _pwRowData("Nome Completo:", _nomeCtrl.text),
+              _pwRowData("CPF:", _cpfCtrl.text),
+              _pwRowData("RG:", "${_rgCtrl.text} - Órgão: ${_rgOrgaoCtrl.text}/${_rgUfCtrl.text}"),
+              _pwRowData("Data Emissão RG:", _rgEmissaoCtrl.text),
+              pw.SizedBox(height: 10),
+              _pwRowData("CNH:", "${_cnhCtrl.text}  |  Categoria: ${_categoriaCtrl.text}"),
+              _pwRowData("Validade CNH:", _validadeCtrl.text),
+              _pwRowData("Registro ANTT:", _anttCtrl.text.isEmpty ? "Não informado" : _anttCtrl.text),
+              pw.SizedBox(height: 10),
+              pw.Text("Endereço Cadastrado:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+              pw.Text("${_enderecoCtrl.text}", style: const pw.TextStyle(fontSize: 10)),
+              pw.Text("${_cidadeUfCtrl.text} - CEP: ${_cepCtrl.text}", style: const pw.TextStyle(fontSize: 10)),
+              pw.Spacer(),
+              pw.Divider(),
+              pw.Container(
+                alignment: pw.Alignment.center,
+                margin: const pw.EdgeInsets.only(top: 10),
+                child: pw.Column(
+                  children: [
+                    pw.Text("AzorTech Software Solutions", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.SizedBox(height: 5),
+                    pw.Text(
+                      "A AzorTech Software Solutions se isenta da responsabilidade da veracidade dos dados e documentos anexados a este ID. A verificação e autenticidade dos mesmos são de responsabilidade total do Usuário: ${_nomeCtrl.text.toUpperCase()}.",
+                      textAlign: pw.TextAlign.center,
+                      style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                    ),
+                    pw.SizedBox(height: 5),
+                    pw.Text(
+                      "Documento gerado digitalmente via App Capivara Loka. UUID Seguro.",
+                      style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey500),
+                    ),
+                  ],
+                ),
               ),
             ],
           );
         },
       ),
     );
+    return await pdf.save();
+  }
 
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+  pw.Widget _pwRowData(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 4),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.SizedBox(width: 100, child: pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))),
+          pw.Expanded(child: pw.Text(value, style: const pw.TextStyle(fontSize: 10))),
+        ],
+      ),
+    );
+  }
+
+  void _salvarSeguro() async {
+    final bytes = await _gerarBytesPDF();
+    final caminho = await _securityService.salvarDriverIdSeguro(bytes);
+    if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🔒 Salvo em: $caminho'), backgroundColor: Colors.green));
+  }
+  void _visualizar() async {
+    final bytes = await _securityService.carregarDriverId();
+    if(bytes != null) await Printing.layoutPdf(onLayout: (_) async => bytes);
+    else if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum ID salvo encontrado.')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final corPrimaria = Theme.of(context).colorScheme.primary;
+    if (_carregando) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Driver ID'),
         actions: [
-          if (!_editando && !_loading)
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => setState(() => _editando = true),
-              tooltip: 'Editar Dados',
-            )
+          if (_temDados) IconButton(icon: const Icon(Icons.edit), onPressed: () => setState(() => _temDados = false))
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: _editando ? _buildFormulario(corPrimaria) : _buildResumo(corPrimaria),
-            ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: _temDados ? _buildCrachaVisual() : _buildFormularioCompleto(),
+      ),
     );
   }
 
-  Widget _buildFormulario(Color cor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'Preencha seus dados para gerar o ID',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
-        ),
-        const SizedBox(height: 20),
-        TextField(controller: _nomeController, decoration: const InputDecoration(labelText: 'Nome Completo', border: OutlineInputBorder())),
-        const SizedBox(height: 12),
-        TextField(controller: _cpfController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'CPF', border: OutlineInputBorder())),
-        const SizedBox(height: 12),
-        TextField(controller: _rgController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'RG', border: OutlineInputBorder())),
-        const SizedBox(height: 12),
-        TextField(controller: _cnhController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'CNH', border: OutlineInputBorder())),
-        const SizedBox(height: 12),
-        TextField(controller: _enderecoController, decoration: const InputDecoration(labelText: 'Endereço Completo', border: OutlineInputBorder())),
-        const SizedBox(height: 24),
-        const Text('Fotos dos Documentos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 12),
-        _buildFotoPicker('Foto de Rosto', _fotoRosto, () => _selecionarImagem('rosto')),
-        _buildFotoPicker('Foto da CNH', _fotoCnh, () => _selecionarImagem('cnh')),
-        _buildFotoPicker('Comprovante Residência', _fotoComprovante, () => _selecionarImagem('comp')),
-        const SizedBox(height: 30),
-        ElevatedButton(
-          onPressed: _salvar,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: cor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+  // --- FORMULÁRIO UI (COM BLOQUEIO DE NÚMEROS) ---
+  Widget _buildFormularioCompleto() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("1. Dados Pessoais & CNH", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
+          const Divider(),
+          TextFormField(
+            controller: _nomeCtrl, 
+            decoration: const InputDecoration(labelText: 'Nome Completo *', isDense: true), 
+            validator: (v) => v!.isEmpty ? 'Obrigatório' : null
           ),
-          child: const Text('SALVAR PERFIL'),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: TextFormField(
+                controller: _cpfCtrl, 
+                decoration: const InputDecoration(labelText: 'CPF * (Só números)', isDense: true), 
+                keyboardType: TextInputType.number, 
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+                validator: (v) => v!.isEmpty ? 'Req' : null
+              )
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextFormField(
+                controller: _cnhCtrl, 
+                decoration: const InputDecoration(labelText: 'CNH * (Só números)', isDense: true), 
+                keyboardType: TextInputType.number, 
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+                validator: (v) => v!.isEmpty ? 'Req' : null
+              )
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: TextFormField(controller: _categoriaCtrl, decoration: const InputDecoration(labelText: 'Categoria', isDense: true))),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextFormField(
+                controller: _validadeCtrl,
+                readOnly: true, 
+                onTap: () => _selecionarData(_validadeCtrl), 
+                decoration: const InputDecoration(labelText: 'Validade CNH', isDense: true, suffixIcon: Icon(Icons.calendar_today, size: 16)),
+              )
+            ),
+          ]),
+
+          const SizedBox(height: 20),
+          const Text("2. Registro Geral (RG)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
+          const Divider(),
+          Row(children: [
+            Expanded(
+              flex: 2, 
+              child: TextFormField(
+                controller: _rgCtrl, 
+                decoration: const InputDecoration(labelText: 'Número RG (Só números)', isDense: true),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+              )
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextFormField(
+                controller: _rgEmissaoCtrl, 
+                readOnly: true,
+                onTap: () => _selecionarData(_rgEmissaoCtrl),
+                decoration: const InputDecoration(labelText: 'Emissão', isDense: true, suffixIcon: Icon(Icons.calendar_today, size: 16))
+              )
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: TextFormField(controller: _rgOrgaoCtrl, decoration: const InputDecoration(labelText: 'Expedidor (Ex: SSP)', isDense: true))),
+            const SizedBox(width: 10),
+            Expanded(child: TextFormField(controller: _rgUfCtrl, decoration: const InputDecoration(labelText: 'UF', isDense: true))),
+          ]),
+
+          const SizedBox(height: 20),
+          const Text("3. Dados Profissionais & Endereço", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
+          const Divider(),
+          TextFormField(
+            controller: _anttCtrl, 
+            decoration: const InputDecoration(labelText: 'ANTT Nº (Só números)', isDense: true),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+          ),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: TextFormField(
+                controller: _cepCtrl, 
+                decoration: const InputDecoration(labelText: 'CEP (Só números)', isDense: true), 
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // <--- AQUI
+              )
+            ),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: TextFormField(controller: _cidadeUfCtrl, decoration: const InputDecoration(labelText: 'Cidade/UF', isDense: true))),
+          ]),
+          const SizedBox(height: 10),
+          TextFormField(controller: _enderecoCtrl, decoration: const InputDecoration(labelText: 'Endereço Completo (Rua, Nº, Bairro)', isDense: true)),
+
+          const SizedBox(height: 20),
+          const Text("4. Fotos dos Documentos 📸", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
+          const Text("Toque para escolher (Câmera ou Galeria).", style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const Divider(),
+          const SizedBox(height: 10),
+          
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            children: [
+              _buildImageUploadButton("CNH", _imgCnhPath, 'cnh'),
+              _buildImageUploadButton("RG (Frente)", _imgRgPath, 'rg'),
+              _buildImageUploadButton("CRLV (Veículo)", _imgCrlvPath, 'crlv'),
+              _buildImageUploadButton("ANTT", _imgAnttPath, 'antt'),
+              _buildImageUploadButton("Comp. Resid.", _imgCompEnderecoPath, 'comp_end'),
+            ],
+          ),
+
+          const SizedBox(height: 30),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _salvarDados,
+              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15), backgroundColor: Colors.blue),
+              child: const Text('SALVAR CADASTRO COMPLETO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 30),
+        ],
+      ),
     );
   }
 
-  Widget _buildResumo(Color cor) {
+  Widget _buildImageUploadButton(String label, String? path, String tipoDoc) {
+    bool temFoto = path != null && path.isNotEmpty && File(path).existsSync();
+    return InkWell(
+      onTap: () => _mostrarOpcoesFoto(tipoDoc),
+      child: Container(
+        decoration: BoxDecoration(
+          color: temFoto ? Colors.green.shade50 : Colors.grey.shade100,
+          border: Border.all(color: temFoto ? Colors.green : Colors.grey.shade400),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            temFoto 
+              ? const Icon(Icons.check_circle, color: Colors.green, size: 30)
+              : const Icon(Icons.add_a_photo, color: Colors.grey, size: 30),
+            const SizedBox(height: 4),
+            Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: temFoto ? Colors.green.shade800 : Colors.black54)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCrachaVisual() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        Container(
+          height: 220,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [Colors.blue.shade900, Colors.black]),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [const BoxShadow(color: Colors.black45, blurRadius: 10)],
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.grey.shade200,
-                  backgroundImage: _fotoRosto != null ? FileImage(_fotoRosto!) : null,
-                  child: _fotoRosto == null ? const Icon(Icons.person, size: 50, color: Colors.grey) : null,
-                ),
-                const SizedBox(height: 16),
-                Text(_nomeController.text, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                const Divider(),
-                _linhaDado('CPF', _cpfController.text),
-                _linhaDado('RG', _rgController.text),
-                _linhaDado('CNH', _cnhController.text),
-                _linhaDado('Endereço', _enderecoController.text),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  const Text("DRIVER ID", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                  if (_imgCnhPath != null) const Icon(Icons.verified, color: Colors.greenAccent),
+                ]),
+                const Spacer(),
+                Text(_nomeCtrl.text.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text("ANTT: ${_anttCtrl.text}", style: const TextStyle(color: Colors.white70)),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("RG: ${_rgCtrl.text}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    Text("CNH: ${_cnhCtrl.text}", style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  ],
+                )
               ],
             ),
           ),
         ),
-        const SizedBox(height: 20),
-        const Text('Documentos Cadastrados:', style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(child: _previewDoc('CNH', _fotoCnh)),
-            const SizedBox(width: 10),
-            Expanded(child: _previewDoc('Comprovante', _fotoComprovante)),
-          ],
-        ),
         const SizedBox(height: 30),
-        ElevatedButton.icon(
-          onPressed: _gerarPdf,
-          icon: const Icon(Icons.picture_as_pdf),
-          label: const Text('GERAR DRIVER ID'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green.shade700,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _linhaDado(String label, String valor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Expanded(child: Text(valor, textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w600))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFotoPicker(String label, File? arquivo, VoidCallback onTap) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(8),
-            image: arquivo != null ? DecorationImage(image: FileImage(arquivo), fit: BoxFit.cover) : null,
-          ),
-          child: arquivo == null ? const Icon(Icons.camera_alt) : null,
-        ),
-        title: Text(label),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  Widget _previewDoc(String label, File? arquivo) {
-    return Column(
-      children: [
-        Container(
-          height: 100,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
-            image: arquivo != null ? DecorationImage(image: FileImage(arquivo), fit: BoxFit.cover) : null,
-          ),
-          child: arquivo == null ? const Center(child: Text('Pendente', style: TextStyle(color: Colors.red))) : null,
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        Row(children: [
+          Expanded(child: ElevatedButton.icon(onPressed: _salvarSeguro, icon: const Icon(Icons.lock), label: const Text('Criptografar'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white))),
+          const SizedBox(width: 10),
+          Expanded(child: ElevatedButton.icon(onPressed: _visualizar, icon: const Icon(Icons.visibility), label: const Text('Ver Arquivo'), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white))),
+        ]),
       ],
     );
   }
