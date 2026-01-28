@@ -1,20 +1,28 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'; // <--- IMPORTANTE PARA O CALENDÁRIO
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Importa as páginas
+import 'pages/welcome_page.dart'; // <--- TELA NOVA
 import 'pages/hub_page.dart';
 import 'pages/minha_conta_page.dart';
 import 'pages/configuracoes_page.dart';
 import 'pages/premium.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 1. VERIFICAÇÃO DE SETUP (VEÍCULO)
+  final prefs = await SharedPreferences.getInstance();
+  final bool isSetupDone = prefs.getBool('is_setup_done') ?? false;
+
+  runApp(MyApp(initialRoute: isSetupDone ? '/home' : '/welcome'));
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final String initialRoute; // <--- ROTA DINÂMICA
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -61,21 +69,24 @@ class _MyAppState extends State<MyApp> {
       theme: temaClaro,
       darkTheme: temaEscuro,
       
-      // --- CONFIGURAÇÃO DE IDIOMA (PARA O CALENDÁRIO FUNCIONAR) ---
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('pt', 'BR'), // Define Português do Brasil como padrão
+        Locale('pt', 'BR'),
       ],
-      // -------------------------------------------------------------
-
-      home: MainPage(
-        modoTema: modoTema,
-        onAlterarTema: alternarTema,
-      ),
+      
+      // --- SISTEMA DE ROTAS INTEGRADO ---
+      initialRoute: widget.initialRoute, // Começa no Welcome ou Home
+      routes: {
+        '/welcome': (context) => const WelcomePage(),
+        '/home': (context) => MainPage(
+          modoTema: modoTema,
+          onAlterarTema: alternarTema,
+        ),
+      },
     );
   }
 }
@@ -95,10 +106,12 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  // Dados do Menu Lateral (Perfil)
   String nomeUsuario = 'Visitante';
   String emailUsuario = '';
   File? fotoPerfilFile;
+
+  // Variáveis do Veículo para o Drawer
+  String _nomeVeiculo = "Meu Veículo";
 
   @override
   void initState() {
@@ -114,6 +127,9 @@ class _MainPageState extends State<MainPage> {
       if (nomeUsuario.isEmpty) nomeUsuario = 'Visitante';
       emailUsuario = prefs.getString('perfil_email') ?? '';
       
+      // Carrega Veículo Selecionado
+      _nomeVeiculo = prefs.getString('veiculo_nome') ?? "Meu Veículo";
+      
       final path = prefs.getString('perfil_foto');
       if (path != null && path.isNotEmpty) {
         fotoPerfilFile = File(path);
@@ -128,7 +144,6 @@ class _MainPageState extends State<MainPage> {
       context,
       MaterialPageRoute(builder: (_) => const MinhaContaPage()),
     );
-    // Se voltou da tela de conta, recarrega a foto e nome no menu
     if (atualizou == true) await _carregarPerfilMenu();
   }
 
@@ -146,7 +161,6 @@ class _MainPageState extends State<MainPage> {
     final corPrimaria = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      // O Drawer (Menu Lateral) fica aqui no nível principal
       drawer: Drawer(
         child: SafeArea(
           child: Column(
@@ -173,9 +187,10 @@ class _MainPageState extends State<MainPage> {
                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                           ),
                           const SizedBox(height: 2),
+                          // Mostra o VEÍCULO no lugar do email (ou ambos)
                           Text(
-                            emailUsuario.isEmpty ? 'Não logado' : emailUsuario,
-                            style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7)),
+                            _nomeVeiculo, // <--- EXIBE O BRUTO AQUI
+                            style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -199,6 +214,8 @@ class _MainPageState extends State<MainPage> {
                 title: const Text('Seja VIP'),
                 onTap: () { Navigator.pop(context); abrirPremium(); },
               ),
+              
+              // --- RESETAR PARA TESTES (OPCIONAL) ---
               const Spacer(),
               const Divider(height: 1),
               Padding(
@@ -215,7 +232,7 @@ class _MainPageState extends State<MainPage> {
         ),
       ),
       
-      // O corpo agora é a HubPage (Menu Grid)
+      // Usa sua HubPage original como corpo
       body: const HubPage(),
     );
   }

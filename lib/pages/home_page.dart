@@ -5,6 +5,7 @@ import 'relatorio_page.dart';
 import 'driver_id_page.dart';
 import 'exibefrete.dart';
 import 'premium.dart';
+import 'calculadora_frete_page.dart';
 
 // Controlador para atualizar a Home
 class HomeRefreshController extends ChangeNotifier {
@@ -238,12 +239,12 @@ class _HomePageState extends State<HomePage> {
         Expanded(
           child: _cardAcao(
             titulo: 'Documentos',
-            icone: Icons.badge,
+            icone: Icons.calculate_rounded,
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const DriverIdPage(),
+                  builder: (_) => const CalculadoraFretePage(),
                 ),
               );
             },
