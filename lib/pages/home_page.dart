@@ -6,6 +6,7 @@ import 'driver_id_page.dart';
 import 'exibefrete.dart';
 import 'premium.dart';
 import 'calculadora_frete_page.dart';
+import 'novo_frete_page.dart'; // Importado para permitir a edição
 
 // Controlador para atualizar a Home
 class HomeRefreshController extends ChangeNotifier {
@@ -65,9 +66,13 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  // Getters atualizados
   int get totalPendentes =>
       fretes.where((f) => f.statusFrete == 'Pendente').length;
-  double get totalFinanceiro => fretes.fold(0, (s, f) => s + f.valorPago);
+
+  // Fórmula resumida do Lucro Real
+  double get totalLucro => fretes.fold(
+      0, (s, f) => s + (f.valorPago - (totalDespesasPorFrete[f.id] ?? 0)));
 
   // Saudação com Emojis Dinâmicos
   String get saudacao {
@@ -86,6 +91,89 @@ class _HomePageState extends State<HomePage> {
         offset: const Offset(0, 6),
       ),
     ];
+  }
+
+  // Funções de Gerenciamento de Frete (Opções e Edição)
+  void _mostrarOpcoesFrete(Frete frete) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.remove_red_eye_outlined),
+                title: const Text('Visualizar Detalhes',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final atualizado = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ExibeFretePage(frete: frete),
+                    ),
+                  );
+                  if (atualizado == true) carregar();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Editar Frete',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _abrirEdicao(frete);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _abrirEdicao(Frete frete) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.9,
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2))),
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text("Editar Frete",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            Expanded(
+              child: NovoFretePage(
+                frete: frete,
+                onSaved: () {
+                  Navigator.pop(context);
+                  carregar();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -116,7 +204,9 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 10),
                       Text(
                         'Nenhum frete cadastrado',
-                        style: TextStyle(color: Colors.grey.withOpacity(0.8)),
+                        style: TextStyle(
+                            color: Colors.grey.withOpacity(0.8),
+                            fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -135,12 +225,12 @@ class _HomePageState extends State<HomePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '$saudacao', // Usando a variável dinâmica aqui
+          '$saudacao',
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
-        const Text('Resumo dos seus fretes',
-            style: TextStyle(color: Colors.grey)),
+        const Text('Resumo dos Fretes',
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -158,9 +248,9 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(width: 15),
         Expanded(
           child: _cardResumo(
-            titulo: 'Financeiro',
-            valor: 'R\$ ${totalFinanceiro.toStringAsFixed(2)}',
-            icone: Icons.account_balance_wallet,
+            titulo: 'Lucro Real', // Alterado para refletir a nova métrica
+            valor: 'R\$ ${totalLucro.toStringAsFixed(2)}',
+            icone: Icons.trending_up, // Ícone de lucro
           ),
         ),
         const SizedBox(width: 15),
@@ -194,7 +284,9 @@ class _HomePageState extends State<HomePage> {
         children: [
           Icon(icone, color: corPrimaria, size: 28),
           const SizedBox(height: 10),
-          Text(titulo, style: const TextStyle(color: Colors.grey)),
+          Text(titulo,
+              style:
+                  const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(
             valor,
@@ -222,7 +314,7 @@ class _HomePageState extends State<HomePage> {
             },
           ),
         ),
-        const SizedBox(width: 15),
+        const SizedBox(width: 18),
         Expanded(
           child: CardAcaoPremium(
             onTap: () {
@@ -235,10 +327,10 @@ class _HomePageState extends State<HomePage> {
             },
           ),
         ),
-        const SizedBox(width: 15),
+        const SizedBox(width: 18),
         Expanded(
           child: _cardAcao(
-            titulo: 'Documentos',
+            titulo: 'Calculadora',
             icone: Icons.calculate_rounded,
             onTap: () {
               Navigator.push(
@@ -280,7 +372,7 @@ class _HomePageState extends State<HomePage> {
             Text(
               titulo,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -290,32 +382,15 @@ class _HomePageState extends State<HomePage> {
 
   Widget _freteCard(Frete frete) {
     final corStatus = _corStatusFrete(frete.statusFrete);
-
     final id = frete.id;
     final despesas = (id != null) ? (totalDespesasPorFrete[id] ?? 0.0) : 0.0;
-
     final valorBruto = frete.valorFrete;
-
-    // Cálculo correto: Líquido = (Em Aberto) - Despesas
-    // (Considerando que as despesas saem do lucro/bolso do motorista e não da dívida da empresa)
-    var valorLiquido = frete.valorFaltante - despesas;
-
+    var valorLiquido = frete.valorFrete - frete.valorFaltante - despesas;
     if (valorLiquido < 0) valorLiquido = 0;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
-      onTap: () async {
-        final atualizado = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ExibeFretePage(frete: frete),
-          ),
-        );
-
-        if (atualizado == true) {
-          carregar();
-        }
-      },
+      onTap: () => _mostrarOpcoesFrete(frete), // Alterado para mostrar opções
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
@@ -353,7 +428,8 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(height: 8),
-            Text(frete.empresa),
+            Text(frete.empresa,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -366,7 +442,7 @@ class _HomePageState extends State<HomePage> {
             Row(
               children: [
                 Expanded(child: _linhaValor('Despesas', despesas)),
-                Expanded(child: _linhaValor('Líquido', valorLiquido)),
+                Expanded(child: _linhaValor('Parcial Liquido', valorLiquido)),
                 const Expanded(child: SizedBox()),
               ],
             ),
@@ -374,7 +450,8 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 10),
               Text(
                 'Motivo: ${frete.motivoRejeicao}',
-                style: const TextStyle(color: Colors.grey),
+                style: const TextStyle(
+                    color: Colors.grey, fontWeight: FontWeight.bold),
               ),
             ],
           ],
@@ -400,7 +477,9 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(label,
+            style: const TextStyle(
+                color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
         const SizedBox(height: 2),
         Text(
           'R\$ ${valor.toStringAsFixed(2)}',
@@ -411,6 +490,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+// O Widget CardAcaoPremium permanece o mesmo, garantindo o estilo Premium e as animações de escala.
 class CardAcaoPremium extends StatefulWidget {
   final VoidCallback onTap;
 
@@ -510,7 +590,7 @@ class _CardAcaoPremiumState extends State<CardAcaoPremium>
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
               ),
