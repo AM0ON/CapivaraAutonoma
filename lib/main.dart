@@ -2,9 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-// Importa as páginas
-import 'pages/welcome_page.dart'; // <--- TELA NOVA
+import 'pages/welcome_page.dart'; 
 import 'pages/hub_page.dart';
 import 'pages/minha_conta_page.dart';
 import 'pages/configuracoes_page.dart';
@@ -13,7 +11,7 @@ import 'pages/premium.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 1. VERIFICAÇÃO DE SETUP (VEÍCULO)
+  
   final prefs = await SharedPreferences.getInstance();
   final bool isSetupDone = prefs.getBool('is_setup_done') ?? false;
 
@@ -21,7 +19,7 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  final String initialRoute; // <--- ROTA DINÂMICA
+  final String initialRoute; 
   const MyApp({super.key, required this.initialRoute});
 
   @override
@@ -39,7 +37,6 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Configurações visuais (Cores, estilo de cards, etc)
     final temaClaro = ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
@@ -64,7 +61,7 @@ class _MyAppState extends State<MyApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Capivara Loka',
+      title: 'Meu Frete',
       themeMode: modoTema,
       theme: temaClaro,
       darkTheme: temaEscuro,
@@ -77,9 +74,7 @@ class _MyAppState extends State<MyApp> {
       supportedLocales: const [
         Locale('pt', 'BR'),
       ],
-      
-      // --- SISTEMA DE ROTAS INTEGRADO ---
-      initialRoute: widget.initialRoute, // Começa no Welcome ou Home
+      initialRoute: widget.initialRoute, 
       routes: {
         '/welcome': (context) => const WelcomePage(),
         '/home': (context) => MainPage(
@@ -110,7 +105,6 @@ class _MainPageState extends State<MainPage> {
   String emailUsuario = '';
   File? fotoPerfilFile;
 
-  // Variáveis do Veículo para o Drawer
   String _nomeVeiculo = "Meu Veículo";
 
   @override
@@ -126,8 +120,6 @@ class _MainPageState extends State<MainPage> {
       nomeUsuario = prefs.getString('perfil_nome') ?? 'Visitante';
       if (nomeUsuario.isEmpty) nomeUsuario = 'Visitante';
       emailUsuario = prefs.getString('perfil_email') ?? '';
-      
-      // Carrega Veículo Selecionado
       _nomeVeiculo = prefs.getString('veiculo_nome') ?? "Meu Veículo";
       
       final path = prefs.getString('perfil_foto');
@@ -187,9 +179,8 @@ class _MainPageState extends State<MainPage> {
                             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                           ),
                           const SizedBox(height: 2),
-                          // Mostra o VEÍCULO no lugar do email (ou ambos)
                           Text(
-                            _nomeVeiculo, // <--- EXIBE O BRUTO AQUI
+                            _nomeVeiculo, 
                             style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -215,7 +206,6 @@ class _MainPageState extends State<MainPage> {
                 onTap: () { Navigator.pop(context); abrirPremium(); },
               ),
               
-              // --- RESETAR PARA TESTES (OPCIONAL) ---
               const Spacer(),
               const Divider(height: 1),
               Padding(
@@ -232,7 +222,6 @@ class _MainPageState extends State<MainPage> {
         ),
       ),
       
-      // Usa sua HubPage original como corpo
       body: const HubPage(),
     );
   }
