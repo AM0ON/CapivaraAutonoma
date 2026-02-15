@@ -1,8 +1,36 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-
+import 'dart:typed_data';
 import '../models/frete.dart';
-import '../models/motorista.dart';
+
+class Despesa {
+  final int? id;
+  final Uint8List freteId;
+  final String tipo;
+  final double valor;
+  final String? observacao;
+  final String criadoEm;
+
+  Despesa({this.id, required this.freteId, required this.tipo, required this.valor, this.observacao, required this.criadoEm});
+
+  Map<String, dynamic> paraMapa() => {
+    'id': id,
+    'freteId': freteId,
+    'tipo': tipo,
+    'valor': valor,
+    'observacao': observacao,
+    'criadoEm': criadoEm,
+  };
+
+  factory Despesa.doMapa(Map<String, dynamic> mapa) => Despesa(
+    id: mapa['id'],
+    freteId: mapa['freteId'] as Uint8List,
+    tipo: mapa['tipo'],
+    valor: (mapa['valor'] as num).toDouble(),
+    observacao: mapa['observacao'],
+    criadoEm: mapa['criadoEm'],
+  );
+}
 
 class FreteDatabase {
   static final FreteDatabase instance = FreteDatabase._init();
@@ -12,45 +40,46 @@ class FreteDatabase {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'fretes_v2.db');
-
-    _database = await openDatabase(
-      path,
-      version: 6, // Versão 6: Adição de Endereço
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-    );
-
+    _database = await _initDB('meu_frete_v7.db');
     return _database!;
+  }
+
+  Future<Database> _initDB(String caminho) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, caminho);
+
+    return await openDatabase(
+      path,
+      version: 7,
+      onCreate: _onCreate,
+      onConfigure: (db) async => await db.execute('PRAGMA foreign_keys = ON'),
+    );
   }
 
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE fretes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id BLOB PRIMARY KEY,
         empresa TEXT NOT NULL,
         responsavel TEXT NOT NULL,
         documento TEXT NOT NULL,
         telefone TEXT NOT NULL,
         origem TEXT NOT NULL,
         destino TEXT NOT NULL,
-        valorFrete REAL NOT NULL,
-        valorPago REAL NOT NULL,
-        valorFaltante REAL NOT NULL,
-        statusPagamento TEXT NOT NULL,
-        statusFrete TEXT NOT NULL,
+        valorBase REAL NOT NULL,
+        taxaMediacao REAL NOT NULL,
+        taxasPsp REAL NOT NULL,
+        status INTEGER NOT NULL,
+        chavePixMotorista TEXT,
         dataColeta TEXT,
-        dataEntrega TEXT,
-        motivoRejeicao TEXT
+        dataEntrega TEXT
       )
     ''');
 
     await db.execute('''
       CREATE TABLE despesas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        freteId INTEGER NOT NULL,
+        freteId BLOB NOT NULL,
         tipo TEXT NOT NULL,
         valor REAL NOT NULL,
         observacao TEXT,
@@ -58,177 +87,64 @@ class FreteDatabase {
         FOREIGN KEY (freteId) REFERENCES fretes(id) ON DELETE CASCADE
       )
     ''');
-
-    await db.execute('''
-      CREATE TABLE motorista (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT,
-        rg TEXT,
-        cpf TEXT,
-        cnh TEXT,
-        endereco TEXT,
-        foto_rosto TEXT,
-        foto_cnh TEXT,
-        foto_comprovante TEXT
-      )
-    ''');
-  }
-
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 5) {
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS motorista (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          nome TEXT,
-          rg TEXT,
-          cpf TEXT,
-          cnh TEXT,
-          foto_rosto TEXT,
-          foto_cnh TEXT,
-          foto_comprovante TEXT
-        )
-      ''');
-    }
-    
-    // Atualização para versão 6: Adiciona coluna endereço se não existir
-    if (oldVersion < 6) {
-      // Verifica se a tabela existe antes de alterar
-      try {
-         await db.execute('ALTER TABLE motorista ADD COLUMN endereco TEXT');
-      } catch (e) {
-         // Se a tabela não existia, o create table acima já resolveu ou criamos agora
-         await db.execute('''
-          CREATE TABLE IF NOT EXISTS motorista (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT,
-            rg TEXT,
-            cpf TEXT,
-            cnh TEXT,
-            endereco TEXT,
-            foto_rosto TEXT,
-            foto_cnh TEXT,
-            foto_comprovante TEXT
-          )
-        ''');
-      }
-    }
   }
 
   // --- MÉTODOS DE FRETE ---
-  Future<int> inserirFrete(Frete frete) async {
+
+  Future<void> inserirFrete(Frete frete) async {
     final db = await database;
-    return await db.insert('fretes', frete.toMap());
+    await db.insert('fretes', frete.paraMapa());
   }
 
-  Future<List<Frete>> getFretes() async {
+  Future<List<Frete>> listarFretes() async {
     final db = await database;
-    final result = await db.query('fretes', orderBy: 'id DESC');
-    return result.map((e) => Frete.fromMap(e)).toList();
+    final resultado = await db.query('fretes', orderBy: 'dataColeta DESC');
+    return resultado.map((json) => Frete.doMapa(json)).toList();
   }
 
-  Future<int> updateFrete(Frete frete) async {
+  Future<void> atualizarFrete(Frete frete) async {
     final db = await database;
-    return await db.update(
+    await db.update(
       'fretes',
-      frete.toMap(),
+      frete.paraMapa(),
       where: 'id = ?',
       whereArgs: [frete.id],
     );
   }
 
-  Future<int> deleteFrete(int id) async {
+  Future<void> deletarFrete(Uint8List id) async {
     final db = await database;
-    return await db.delete(
-      'fretes',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.delete('fretes', where: 'id = ?', whereArgs: [id]);
   }
 
   // --- MÉTODOS DE DESPESAS ---
-  Future<int> inserirDespesa(Despesa despesa) async {
+
+  Future<void> inserirDespesa(Despesa despesa) async {
     final db = await database;
-    return await db.insert('despesas', despesa.toMap());
+    await db.insert('despesas', despesa.paraMapa());
   }
 
-  Future<List<Despesa>> getDespesas(int freteId) async {
+  Future<List<Despesa>> listarDespesasPorFreteId(Uint8List freteId) async {
     final db = await database;
-    final result = await db.query(
+    final resultado = await db.query(
       'despesas',
       where: 'freteId = ?',
       whereArgs: [freteId],
-      orderBy: 'criadoEm DESC',
     );
-    return result.map((e) => Despesa.fromMap(e)).toList();
+    return resultado.map((json) => Despesa.doMapa(json)).toList();
   }
 
-  Future<int> deleteDespesa(int id) async {
+  Future<void> deletarDespesa(int id) async {
     final db = await database;
-    return await db.delete(
-      'despesas',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.delete('despesas', where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<double> totalDespesasDoFrete(int freteId) async {
+  Future<double> calcularTotalDespesas(Uint8List freteId) async {
     final db = await database;
-    final result = await db.rawQuery(
+    final resultado = await db.rawQuery(
       'SELECT SUM(valor) as total FROM despesas WHERE freteId = ?',
       [freteId],
     );
-
-    if (result.isNotEmpty && result.first['total'] != null) {
-      return double.tryParse(result.first['total'].toString()) ?? 0.0;
-    }
-    return 0.0;
-  }
-
-  Future<Map<int, double>> getTotaisDespesasPorFrete(List<int> freteIds) async {
-    final db = await database;
-    if (freteIds.isEmpty) return {};
-
-    final idsString = freteIds.join(',');
-    final result = await db.rawQuery('''
-      SELECT freteId, SUM(valor) as total
-      FROM despesas
-      WHERE freteId IN ($idsString)
-      GROUP BY freteId
-    ''');
-
-    final map = <int, double>{};
-    for (final row in result) {
-      final fid = row['freteId'] as int;
-      final total = row['total'] != null 
-          ? (double.tryParse(row['total'].toString()) ?? 0.0) 
-          : 0.0;
-      map[fid] = total;
-    }
-    return map;
-  }
-
-  // --- MÉTODOS DE MOTORISTA ---
-  Future<Motorista?> getMotorista() async {
-    final db = await database;
-    try {
-      final result = await db.query('motorista', limit: 1);
-      if (result.isNotEmpty) {
-        return Motorista.fromMap(result.first);
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<void> salvarMotorista(Motorista motorista) async {
-    final db = await database;
-    final existe = await getMotorista();
-    
-    if (existe == null) {
-      await db.insert('motorista', motorista.toMap());
-    } else {
-      await db.update('motorista', motorista.toMap(), where: 'id = ?', whereArgs: [existe.id]);
-    }
+    return (resultado.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 }

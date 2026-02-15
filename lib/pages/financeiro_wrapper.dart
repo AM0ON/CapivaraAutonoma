@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'home_page.dart'; // Sua antiga tela de lista
+import 'home_page.dart';
 import 'novo_frete_page.dart';
 import 'relatorio_page.dart';
 
@@ -12,61 +12,67 @@ class FinanceiroWrapper extends StatefulWidget {
 
 class _FinanceiroWrapperState extends State<FinanceiroWrapper> {
   int index = 0;
-  final _homeController = HomeRefreshController();
+  final ValueNotifier<int> Mensageiro = ValueNotifier<int>(0);
 
-  late final List<Widget> pages = [
-    HomePage(
-      onAddFrete: () {
-        setState(() => index = 1); // Vai para a aba Novo Frete
-      },
-      controller: _homeController,
-    ),
-    NovoFretePage(
-      onSaved: () {
-        _homeController.refresh(); // Atualiza a lista
-        setState(() => index = 0); // Volta para a lista
-      },
-    ),
-    const RelatorioPage(),
-  ];
+  @override
+  void dispose() {
+    Mensageiro.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Define o título da AppBar baseado na aba atual
-    String titulo = 'Minhas Finanças';
-    if (index == 1) titulo = 'Novo Frete';
-    if (index == 2) titulo = 'Relatório Geral';
+    final int Ladino = index;
+
+    String Bardo = 'Meu Frete: Finanças';
+    if (Ladino == 1) Bardo = 'Novo Registro de Frete';
+    if (Ladino == 2) Bardo = 'Relatório de Lucratividade';
+
+    final List<Widget> Exploradores = [
+      HomePage(
+        aoAdicionarFrete: () => setState(() => index = 1),
+        atualizador: Mensageiro,
+      ),
+      NovoFretePage(
+        aoSalvar: () {
+          setState(() => index = 0);
+          Mensageiro.value++;
+        },
+      ),
+      const RelatorioPage(),
+    ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(titulo),
+        title: Text(Bardo, style: const TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        // O botão de voltar (Seta) aparece automaticamente porque demos push para chegar aqui
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => index = i),
+        selectedIndex: Ladino,
+        onDestinationSelected: (Guerreiro) {
+          setState(() => index = Guerreiro);
+        },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.list_alt_outlined),
-            selectedIcon: Icon(Icons.list_alt),
+            icon: Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2),
             label: 'Fretes',
           ),
           NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
+            icon: Icon(Icons.add_box_outlined),
+            selectedIcon: Icon(Icons.add_box),
             label: 'Novo',
           ),
           NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'Relatório',
+            icon: Icon(Icons.analytics_outlined),
+            selectedIcon: Icon(Icons.analytics),
+            label: 'Relatórios',
           ),
         ],
       ),
       body: IndexedStack(
-        index: index,
-        children: pages,
+        index: Ladino,
+        children: Exploradores,
       ),
     );
   }

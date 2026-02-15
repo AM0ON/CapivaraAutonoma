@@ -10,125 +10,69 @@ class CalculadoraFretePage extends StatefulWidget {
 }
 
 class _CalculadoraFretePageState extends State<CalculadoraFretePage> {
-  // Controladores
-  final _distanciaCtrl = TextEditingController();
-  final _freteCtrl = TextEditingController();
-  final _consumoCtrl = TextEditingController();
-  final _combustivelCtrl = TextEditingController();
-  final _pedagioCtrl = TextEditingController();
-  final _margemDesejadaCtrl = TextEditingController(text: "20");
+  final _distanciaController = TextEditingController();
+  final _valorBaseController = TextEditingController();
+  final _consumoMediaController = TextEditingController();
+  final _precoCombustivelController = TextEditingController();
+  final _pedagioTotalController = TextEditingController();
+  final _margemDesejadaController = TextEditingController(text: "20");
 
-  final NumberFormat _currency = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+  final NumberFormat _formatadorMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
-  // Variáveis de Cálculo
-  double _lucro = 0;
-  double _custoCombustivel = 0;
-  double _custoPedagio = 0;
-  double _litrosNecessarios = 0;
-  double _freteBruto = 0;
-  double _margemCalculada = 0;
-  bool _calculado = false;
+  double _lucroEstimado = 0;
+  double _custoCombustivelTotal = 0;
+  double _pedagioCalculado = 0;
+  double _consumoLitrosNecessarios = 0;
+  double _faturamentoBruto = 0;
+  double _margemRealCalculada = 0;
+  bool _foiCalculado = false;
 
-  void _calcular() {
-    double d = double.tryParse(_distanciaCtrl.text.replaceAll(',', '.')) ?? 0;
-    double f = double.tryParse(_freteCtrl.text.replaceAll(',', '.')) ?? 0;
-    double c = double.tryParse(_consumoCtrl.text.replaceAll(',', '.')) ?? 1;
-    double p = double.tryParse(_combustivelCtrl.text.replaceAll(',', '.')) ?? 0;
-    double pedagio = double.tryParse(_pedagioCtrl.text.replaceAll(',', '.')) ?? 0;
+  void _executarCalculoRentabilidade() {
+    final double distancia = _limparEConverter(_distanciaController.text);
+    final double valorBaseFrete = _limparEConverter(_valorBaseController.text);
+    final double mediaConsumo = _limparEConverter(_consumoMediaController.text, valorPadrao: 1.0);
+    final double precoDiesel = _limparEConverter(_precoCombustivelController.text);
+    final double pedagios = _limparEConverter(_pedagioTotalController.text);
 
     setState(() {
-      _freteBruto = f;
-      _litrosNecessarios = d / c;
-      _custoCombustivel = _litrosNecessarios * p;
-      _custoPedagio = pedagio;
-      _lucro = f - _custoCombustivel - _custoPedagio;
-      _margemCalculada = f > 0 ? (_lucro / f) * 100 : 0;
-      _calculado = true;
+      _faturamentoBruto = valorBaseFrete;
+      _consumoLitrosNecessarios = distancia / mediaConsumo;
+      _custoCombustivelTotal = _consumoLitrosNecessarios * precoDiesel;
+      _pedagioCalculado = pedagios;
+      
+      // O Lucro do Motorista no Meu Frete é o Valor Base menos os custos de estrada.
+      // A taxa de 5% da AzorTech é paga pelo embarcador "por fora" do valor base.
+      _lucroEstimado = valorBaseFrete - _custoCombustivelTotal - _pedagioCalculado;
+      _margemRealCalculada = valorBaseFrete > 0 ? (_lucroEstimado / valorBaseFrete) * 100 : 0;
+      _foiCalculado = true;
     });
+    
     FocusScope.of(context).unfocus();
   }
 
-  Map<String, dynamic> _obterStatusMargem() {
-    double desejada = double.tryParse(_margemDesejadaCtrl.text.replaceAll(',', '.')) ?? 0;
-    if (_margemCalculada > desejada) {
-      return {'cor': Colors.green.shade700, 'texto': '(Acima da Margem Desejada)', 'icone': '🚀'};
-    } else if (_margemCalculada == desejada) {
-      return {'cor': Colors.orange.shade700, 'texto': '(Dentro da Margem)', 'icone': '✅'};
-    } else {
-      return {'cor': Colors.red.shade700, 'texto': '(Valor Abaixo da Margem)', 'icone': '⚠️'};
-    }
+  double _limparEConverter(String valor, {double valorPadrao = 0.0}) {
+    final String limpo = valor.replaceAll('.', '').replaceAll(',', '.');
+    return double.tryParse(limpo) ?? valorPadrao;
   }
 
   @override
   Widget build(BuildContext context) {
-    final escuro = Theme.of(context).brightness == Brightness.dark;
-    final status = _calculado ? _obterStatusMargem() : null;
-
     return Scaffold(
-      backgroundColor: escuro ? const Color(0xFF0E1116) : const Color(0xFFF6F6FA),
       appBar: AppBar(
-        title: const Text("Dashboard de Viagem", style: TextStyle(fontWeight: FontWeight.w900)),
+        title: const Text("Calculadora Meu Frete", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Column(
           children: [
-            if (_calculado) ...[
-              _buildResultCard(status!),
+            if (_foiCalculado) ...[
+              _buildCardResultado(),
               const SizedBox(height: 16),
-              _buildDetalhamento(escuro), // Nova seção solicitada
+              _buildDetalhamentoCustos(),
             ],
-
             const SizedBox(height: 20),
-
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(escuro ? 0.3 : 0.05), blurRadius: 20, offset: const Offset(0, 10))],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Custos e Metas", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-                  _campoInput(_margemDesejadaCtrl, "Sua Meta de Margem 🎯", "%", destaca: true),
-                  const Divider(height: 32),
-                  Row(
-                    children: [
-                      Expanded(child: _campoInput(_distanciaCtrl, "Distância 🛣️", "KM")),
-                      const SizedBox(width: 12),
-                      Expanded(child: _campoInput(_consumoCtrl, "Média ⛽", "KM/L")),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _campoInput(_freteCtrl, "Valor Bruto do Frete 💰", "R\$"),
-                  const SizedBox(height: 16),
-                  _campoInput(_combustivelCtrl, "Preço do Combustível 🛢️", "R\$"),
-                  const SizedBox(height: 16),
-                  _campoInput(_pedagioCtrl, "Total de Pedágio 🛣️", "R\$"),
-                  const SizedBox(height: 30),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 60,
-                    child: ElevatedButton(
-                      onPressed: _calcular,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        elevation: 8,
-                      ),
-                      child: const Text("CALCULAR RENTABILIDADE", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildFormularioEntrada(),
             const SizedBox(height: 40),
           ],
         ),
@@ -136,88 +80,121 @@ class _CalculadoraFretePageState extends State<CalculadoraFretePage> {
     );
   }
 
-  Widget _buildResultCard(Map<String, dynamic> status) {
+  Widget _buildCardResultado() {
+    final double margemDesejada = _limparEConverter(_margemDesejadaController.text);
+    Color corStatus = Colors.red.shade700;
+    String textoStatus = "Abaixo da Meta";
+    IconData iconeStatus = Icons.warning_amber_rounded;
+
+    if (_margemRealCalculada >= margemDesejada) {
+      corStatus = Colors.green.shade700;
+      textoStatus = "Excelente Rentabilidade";
+      iconeStatus = Icons.rocket_launch;
+    }
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(30),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: status['cor'],
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [BoxShadow(color: status['cor'].withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
+        color: corStatus,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         children: [
-          Text("LUCRO LÍQUIDO ESTIMADO", style: TextStyle(color: Colors.white.withOpacity(0.7), letterSpacing: 2, fontWeight: FontWeight.bold, fontSize: 12)),
-          const SizedBox(height: 12),
-          Text(_currency.format(_lucro), style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.w900)),
+          const Text("LUCRO LÍQUIDO ESTIMADO", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
           const SizedBox(height: 8),
+          Text(_formatadorMoeda.format(_lucroEstimado), style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(status['icone'], style: const TextStyle(fontSize: 16)),
+              Icon(iconeStatus, color: Colors.white, size: 18),
               const SizedBox(width: 8),
-              Text(status['texto'], style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+              Text(textoStatus, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 10),
-          const Text("Calculo sem considerar alimentação e outros custos.", style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  // --- SEÇÃO DE DETALHAMENTO (O QUE FOI CONSIDERADO) ---
-  Widget _buildDetalhamento(bool escuro) {
+  Widget _buildDetalhamentoCustos() {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: escuro ? Colors.white.withOpacity(0.05) : Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("O que foi considerado: 📝", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          const SizedBox(height: 12),
-          _itemDetalhamento("Faturamento Bruto:", _currency.format(_freteBruto), Colors.blue),
-          _itemDetalhamento("Combustível Consumido:", "${_litrosNecessarios.toStringAsFixed(1)} Litros", null),
-          _itemDetalhamento("Custo do Combustível:", "- ${_currency.format(_custoCombustivel)}", Colors.red),
-          _itemDetalhamento("Custo de Pedágios:", "- ${_currency.format(_custoPedagio)}", Colors.red),
+          _linhaDetalhamento("Faturamento (Base):", _formatadorMoeda.format(_faturamentoBruto)),
+          _linhaDetalhamento("Diesel Necessário:", "${_consumoLitrosNecessarios.toStringAsFixed(1)} L"),
+          _linhaDetalhamento("Gasto com Diesel:", "- ${_formatadorMoeda.format(_custoCombustivelTotal)}", cor: Colors.red),
+          _linhaDetalhamento("Gasto com Pedágio:", "- ${_formatadorMoeda.format(_pedagioCalculado)}", cor: Colors.red),
           const Divider(),
-          _itemDetalhamento("Margem de Lucro Real:", "${_margemCalculada.toStringAsFixed(1)}%", Colors.orange.shade800),
+          _linhaDetalhamento("Margem de Lucro:", "${_margemRealCalculada.toStringAsFixed(1)}%", destaque: true),
         ],
       ),
     );
   }
 
-  Widget _itemDetalhamento(String label, String valor, Color? corValor) {
+  Widget _linhaDetalhamento(String label, String valor, {Color? cor, bool destaque = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
-          Text(valor, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: corValor)),
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(valor, style: TextStyle(fontWeight: destaque ? FontWeight.bold : FontWeight.w600, color: cor)),
         ],
       ),
     );
   }
 
-  Widget _campoInput(TextEditingController ctrl, String label, String sufixo, {bool destaca = false}) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-      decoration: InputDecoration(
-        labelText: label,
-        suffixText: sufixo,
-        filled: true,
-        fillColor: destaca ? Colors.blue.withOpacity(0.1) : (Theme.of(context).brightness == Brightness.dark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: Colors.blue.shade700, width: 2)),
-        floatingLabelStyle: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+  Widget _buildFormularioEntrada() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      ),
+      child: Column(
+        children: [
+          _campoTexto(label: "Sua Meta de Margem (%)", controller: _margemDesejadaController, icone: Icons.track_changes),
+          const Divider(height: 32),
+          _campoTexto(label: "Distância Total (KM)", controller: _distanciaController, icone: Icons.map),
+          _campoTexto(label: "Média de Consumo (KM/L)", controller: _consumoMediaController, icone: Icons.ev_station),
+          _campoTexto(label: "Valor Base do Frete (R\$)", controller: _valorBaseController, icone: Icons.monetization_on),
+          _campoTexto(label: "Preço do Diesel (R\$)", controller: _precoCombustivelController, icone: Icons.local_gas_station),
+          _campoTexto(label: "Pedágio Total (R\$)", controller: _pedagioTotalController, icone: Icons.toll),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton(
+              onPressed: _executarCalculoRentabilidade,
+              child: const Text("CALCULAR MEU FRETE", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _campoTexto({required String label, required TextEditingController controller, required IconData icone}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icone, size: 20),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
     );
   }

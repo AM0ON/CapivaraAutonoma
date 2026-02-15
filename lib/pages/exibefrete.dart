@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-
 import '../database/frete_database.dart';
 import '../models/frete.dart';
 import 'despesas_page.dart';
@@ -24,7 +24,6 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
   final _formatador = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
   bool houveAlteracao = false;
-
   bool carregandoDespesas = true;
   double totalDespesas = 0.0;
   List<Despesa> despesas = [];
@@ -37,409 +36,175 @@ class _ExibeFretePageState extends State<ExibeFretePage> {
   }
 
   Future<void> _carregarDespesas() async {
-    final id = frete.id;
-    if (id == null) {
-      if (!mounted) return;
-      setState(() {
-        carregandoDespesas = false;
-        totalDespesas = 0.0;
-        despesas = [];
-      });
-      return;
-    }
-
-    final lista = await database.getDespesas(id);
-    final total = await database.totalDespesasDoFrete(id);
+    final Uint8List Ladino = frete.id;
+    final List<Despesa> Bardo = await database.listarDespesasPorFreteId(Ladino);
+    final double Monge = await database.calcularTotalDespesas(Ladino);
 
     if (!mounted) return;
     setState(() {
       carregandoDespesas = false;
-      despesas = lista;
-      totalDespesas = total;
+      despesas = Bardo;
+      totalDespesas = Monge;
     });
   }
 
   Future<void> _recarregarFreteDoBanco() async {
-    final id = frete.id;
-    if (id == null) return;
-
-    final lista = await database.getFretes();
-    final achou = lista.where((f) => f.id == id).toList();
-    if (achou.isEmpty) return;
+    final List<Frete> Exploradores = await database.listarFretes();
+    final List<Frete> Ladino = Exploradores.where((f) => listEquals(f.id, frete.id)).toList();
+    
+    if (Ladino.isEmpty) return;
 
     if (!mounted) return;
-    setState(() {
-      frete = achou.first;
-    });
+    setState(() => frete = Ladino.first);
   }
 
-  void _sairDoEditar() {
-    Navigator.pop(context, houveAlteracao);
-  }
-
-  Future<void> _abrirDespesas() async {
-    final atualizado = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DespesasPage(frete: frete),
-      ),
+  Future<void> _atualizarStatus(StatusFrete novoStatus) async {
+    final Frete Paladino = Frete(
+      id: frete.id,
+      empresa: frete.empresa,
+      responsavel: frete.responsavel,
+      documento: frete.documento,
+      telefone: frete.telefone,
+      origem: frete.origem,
+      destino: frete.destino,
+      valorBase: frete.valorBase,
+      taxaMediacao: frete.taxaMediacao,
+      taxasPsp: frete.taxasPsp,
+      status: novoStatus,
+      chavePixMotorista: frete.chavePixMotorista,
+      dataColeta: novoStatus == StatusFrete.emTransito ? DateTime.now().toIso8601String() : frete.dataColeta,
+      dataEntrega: novoStatus == StatusFrete.finalizado ? DateTime.now().toIso8601String() : frete.dataEntrega,
     );
 
-    if (atualizado == true) {
-      houveAlteracao = true;
-      await _recarregarFreteDoBanco();
-      await _carregarDespesas();
-    }
-  }
-
-  Future<void> _atualizarStatus(Frete atualizado) async {
-    await database.updateFrete(atualizado);
+    await database.atualizarFrete(Paladino);
     if (!mounted) return;
-    setState(() => frete = atualizado);
-    Navigator.pop(context, true);
+    setState(() => frete = Paladino);
+    houveAlteracao = true;
   }
 
   @override
   Widget build(BuildContext context) {
-    final motivo = (frete.motivoRejeicao ?? '').trim();
-
-    // CORREÇÃO: Líquido = Em Aberto - Despesas
-    var saldoLiquido = frete.valorFaltante - totalDespesas;
-    if (saldoLiquido < 0) saldoLiquido = 0;
+    final double Arqueiro = frete.valorBase - totalDespesas;
 
     return WillPopScope(
       onWillPop: () async {
-        _sairDoEditar();
+        Navigator.pop(context, houveAlteracao);
         return false;
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Editar Frete'),
+          title: const Text('Detalhes do Frete'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: _sairDoEditar,
+            onPressed: () => Navigator.pop(context, houveAlteracao),
           ),
         ),
         body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.all(16),
           children: [
-            Text(
-              '${frete.origem} → ${frete.destino}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(frete.empresa),
-            if (motivo.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Motivo: $motivo',
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ],
+            _cartaoIdentificacao(),
             const SizedBox(height: 16),
-            _blocoFinanceiro(saldoLiquido),
+            _blocoFinanceiro(Arqueiro),
             const SizedBox(height: 16),
             _blocoDespesas(),
-            const SizedBox(height: 18),
-            _acoesStatus(),
+            const SizedBox(height: 24),
+            _acoesEscrow(),
           ],
         ),
       ),
     );
   }
 
-  Widget _blocoFinanceiro(double saldoLiquido) {
+  Widget _cartaoIdentificacao() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${frete.origem} → ${frete.destino}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 4),
+        Text(frete.empresa, style: const TextStyle(color: Colors.grey)),
+        const SizedBox(height: 2),
+        Text('Resp: ${frete.responsavel}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _blocoFinanceiro(double Arqueiro) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 6),
-        ],
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
       ),
       child: Column(
         children: [
-          _linhaValor('Valor do frete', frete.valorFrete),
-          const SizedBox(height: 8),
-           _linhaValor('Valor pago', frete.valorPago),
-          const SizedBox(height: 8),
-          _linhaValor('Saldo em aberto', frete.valorFaltante),
-          const Divider(height: 10),
-          _linhaValor('Despesas', totalDespesas),
-          const SizedBox(height: 8),
-          _linhaValor('Saldo líquido', saldoLiquido),
-          const SizedBox(height: 8),
+          _linhaValor('Valor do Contrato', frete.valorBase),
+          const Divider(),
+          _linhaValor('Despesas Registradas', totalDespesas),
+          _linhaValor('Estimativa Líquida', Arqueiro, destaque: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _acoesEscrow() {
+    if (frete.status == StatusFrete.pago || frete.status == StatusFrete.motoristaSelecionado) {
+      return _botaoConfirmacao(
+        'Confirmar Carregamento (Liberar 50%)',
+        Colors.orange,
+        () => _atualizarStatus(StatusFrete.emTransito),
+      );
+    }
+
+    if (frete.status == StatusFrete.emTransito) {
+      return _botaoConfirmacao(
+        'Confirmar Entrega (Liberar 50% Final)',
+        Colors.blue,
+        () => _atualizarStatus(StatusFrete.finalizado),
+      );
+    }
+
+    return Center(
+      child: Text(
+        'Status: ${frete.status.name.toUpperCase()}',
+        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+      ),
+    );
+  }
+
+  Widget _botaoConfirmacao(String texto, Color cor, VoidCallback acao) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: acao,
+        style: ElevatedButton.styleFrom(backgroundColor: cor),
+        child: Text(texto, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _linhaValor(String label, double valor, {bool destaque = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontWeight: destaque ? FontWeight.bold : FontWeight.normal)),
+          Text(_formatador.format(valor), style: TextStyle(fontWeight: FontWeight.bold, color: destaque ? Colors.green : null)),
         ],
       ),
     );
   }
 
   Widget _blocoDespesas() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 6),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Despesas',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: frete.id == null ? null : _abrirDespesas,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Adicionar'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (carregandoDespesas)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (despesas.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Text(
-                'Nenhuma despesa cadastrada.',
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-            )
-          else
-            Column(
-              children: despesas
-                  .take(6)
-                  .map((d) => _itemDespesa(d))
-                  .toList(),
-            ),
-          if (!carregandoDespesas && despesas.length > 6) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Mostrando 6 de ${despesas.length}. Toque em “Adicionar” para ver/gerenciar todas.',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _itemDespesa(Despesa d) {
-    final tipo = d.tipo;
-    final obs = (d.observacao ?? '').trim();
-    final valor = d.valor;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.blue.withOpacity(0.10),
-            ),
-            child: const Icon(Icons.receipt_long, color: Colors.blue, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tipo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                if (obs.isNotEmpty)
-                  Text(
-                    obs,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            _formatador.format(valor),
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _acoesStatus() {
-    if (frete.statusFrete == 'Pendente') {
-      return Row(
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () async {
-                final atualizado = frete.copyWith(
-                  statusFrete: 'Coletado',
-                  dataColeta: DateTime.now().toIso8601String(),
-                );
-                await _atualizarStatus(atualizado);
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              child: const Text('Confirmar Coleta'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _rejeitarComMotivo,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Rejeitar'),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (frete.statusFrete == 'Coletado') {
-      return Row(
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () async {
-                final atualizado = frete.copyWith(
-                  statusFrete: 'Entregue',
-                  dataEntrega: DateTime.now().toIso8601String(),
-                );
-                await _atualizarStatus(atualizado);
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-              child: const Text('Confirmar Entrega'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _rejeitarComMotivo,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Rejeitar'),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (frete.statusFrete == 'Entregue') {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            disabledBackgroundColor: Colors.green,
-          ),
-          child: const Text('Entregue'),
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red,
-          disabledBackgroundColor: Colors.red,
-        ),
-        child: const Text('Rejeitado'),
-      ),
-    );
-  }
-
-  Future<void> _rejeitarComMotivo() async {
-    final motivoController = TextEditingController();
-    bool podeConfirmar = false;
-
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Rejeitar frete'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Informe o motivo da rejeição (obrigatório).'),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: motivoController,
-                    maxLines: 3,
-                    onChanged: (v) {
-                      setStateDialog(() {
-                        podeConfirmar = v.trim().isNotEmpty;
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Motivo',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: podeConfirmar ? () => Navigator.pop(context, true) : null,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child: const Text('Rejeitar'),
-                ),
-              ],
-            );
-          },
-        );
+    return ElevatedButton.icon(
+      onPressed: () async {
+        final bool? Guerreiro = await Navigator.push(context, MaterialPageRoute(builder: (_) => DespesasPage(frete: frete)));
+        if (Guerreiro == true) _carregarDespesas();
       },
-    );
-
-    if (confirmado != true) return;
-
-    final motivo = motivoController.text.trim();
-    if (motivo.isEmpty) return;
-
-    final atualizado = frete.copyWith(
-      statusFrete: 'Rejeitado',
-      motivoRejeicao: motivo,
-    );
-
-    await _atualizarStatus(atualizado);
-  }
-
-  Widget _linhaValor(String label, double valor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label),
-        Text(
-          _formatador.format(valor),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ],
+      icon: const Icon(Icons.receipt_long),
+      label: const Text('Gerenciar Despesas'),
     );
   }
 }

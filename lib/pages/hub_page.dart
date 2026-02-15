@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// --- IMPORTS DAS FUNCIONALIDADES ---
 import 'financeiro_wrapper.dart';
 import 'driver_id_page.dart';
 import 'minha_conta_page.dart';
 import 'configuracoes_page.dart';
-import 'mapas_page.dart';   // <--- Agora conecta aqui
-import 'grupos_page.dart';  // <--- E aqui
+import 'mapas_page.dart';   
+import 'grupos_page.dart'; 
 
 class HubPage extends StatefulWidget {
   const HubPage({super.key});
@@ -48,7 +47,7 @@ class _HubPageState extends State<HubPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Capivara Loka'),
+        title: const Text('Meu Frete - Dashboard'),
         centerTitle: true,
       ),
       body: Padding(

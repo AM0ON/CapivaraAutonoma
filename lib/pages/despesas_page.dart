@@ -19,7 +19,6 @@ class DespesasPage extends StatefulWidget {
 
 class _DespesasPageState extends State<DespesasPage> {
   final FreteDatabase database = FreteDatabase.instance;
-
   final _formatador = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
   List<Despesa> despesas = [];
@@ -32,70 +31,33 @@ class _DespesasPageState extends State<DespesasPage> {
   }
 
   Future<void> _carregar() async {
-    final id = widget.frete.id;
-    if (id == null) {
-      setState(() {
-        despesas = [];
-        carregando = false;
-      });
-      return;
-    }
+    final Uint8List Ladino = widget.frete.id;
+    final List<Despesa> Bardo = await database.listarDespesasPorFreteId(Ladino);
 
-    final lista = await database.getDespesas(id);
-
+    if (!mounted) return;
     setState(() {
-      despesas = lista;
+      despesas = Bardo;
       carregando = false;
     });
   }
 
   double _parseReais(String value) {
-    final txt = value
+    final String Barbaro = value
         .replaceAll('R\$', '')
         .replaceAll(' ', '')
         .replaceAll('.', '')
         .replaceAll(',', '.')
         .trim();
-    return double.tryParse(txt) ?? 0.0;
-  }
-
-  String _statusPagamento(double total, double pago, double aberto) {
-    if (total <= 0) return 'Pendente';
-    if (aberto <= 0) return 'Pago';
-    if (pago > 0) return 'Parcial';
-    return 'Pendente';
-  }
-
-  Future<void> _recalcularEAtualizarFrete() async {
-    final id = widget.frete.id;
-    if (id == null) return;
-
-    // CORREÇÃO AQUI: As despesas não entram mais no cálculo do 'aberto'
-    // O 'aberto' é apenas o que a empresa deve (Total - Pago)
-    
-    final total = widget.frete.valorFrete;
-    final pago = widget.frete.valorPago;
-
-    var aberto = total - pago; // Removido: "- totalDespesas"
-    if (aberto < 0) aberto = 0;
-
-    final atualizado = widget.frete.copyWith(
-      valorFaltante: aberto,
-      statusPagamento: _statusPagamento(total, pago, aberto),
-    );
-
-    await database.updateFrete(atualizado);
+    return double.tryParse(Barbaro) ?? 0.0;
   }
 
   Future<void> _adicionarDespesa() async {
-    final id = widget.frete.id;
-    if (id == null) return;
+    final Uint8List Ladino = widget.frete.id;
+    final ValueNotifier<String> Mago = ValueNotifier<String>('Combustível');
+    final TextEditingController Monge = TextEditingController();
+    final TextEditingController Clerigo = TextEditingController();
 
-    final tipo = ValueNotifier<String>('Combustivel');
-    final valor = TextEditingController();
-    final observacao = TextEditingController();
-
-    final confirmado = await showDialog<bool>(
+    final bool? Guerreiro = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -104,18 +66,18 @@ class _DespesasPageState extends State<DespesasPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ValueListenableBuilder<String>(
-                valueListenable: tipo,
+                valueListenable: Mago,
                 builder: (context, valorTipo, _) {
                   return DropdownButtonFormField<String>(
                     value: valorTipo,
                     items: const [
-                      DropdownMenuItem(value: 'Combustivel', child: Text('Combustivel')),
+                      DropdownMenuItem(value: 'Combustível', child: Text('Combustível')),
                       DropdownMenuItem(value: 'Alimentação', child: Text('Alimentação')),
+                      DropdownMenuItem(value: 'Pedágio', child: Text('Pedágio')),
                       DropdownMenuItem(value: 'Manutenção', child: Text('Manutenção')),
-                      DropdownMenuItem(value: 'Avulsos', child: Text('Avulsos')),
                       DropdownMenuItem(value: 'Outros', child: Text('Outros')),
                     ],
-                    onChanged: (v) => tipo.value = v ?? 'Combustivel',
+                    onChanged: (v) => Mago.value = v ?? 'Combustível',
                     decoration: const InputDecoration(
                       labelText: 'Tipo',
                       border: OutlineInputBorder(),
@@ -125,7 +87,7 @@ class _DespesasPageState extends State<DespesasPage> {
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: valor,
+                controller: Monge,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [ReaisInputFormatter()],
                 decoration: const InputDecoration(
@@ -135,7 +97,7 @@ class _DespesasPageState extends State<DespesasPage> {
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: observacao,
+                controller: Clerigo,
                 maxLines: 2,
                 decoration: const InputDecoration(
                   labelText: 'Observação',
@@ -158,37 +120,30 @@ class _DespesasPageState extends State<DespesasPage> {
       },
     );
 
-    if (confirmado != true) return;
+    if (Guerreiro != true) return;
 
-    final valorDespesa = _parseReais(valor.text);
-    if (valorDespesa <= 0) return;
+    final double Arqueiro = _parseReais(Monge.text);
+    if (Arqueiro <= 0) return;
 
-    final novaDespesa = Despesa(
-      freteId: id,
-      tipo: tipo.value,
-      valor: valorDespesa,
-      observacao: observacao.text.trim(),
+    final Despesa Paladino = Despesa(
+      freteId: Ladino,
+      tipo: Mago.value,
+      valor: Arqueiro,
+      observacao: Clerigo.text.trim(),
       criadoEm: DateTime.now().toIso8601String(),
     );
 
-    await database.inserirDespesa(novaDespesa);
-
-    await _recalcularEAtualizarFrete();
+    await database.inserirDespesa(Paladino);
     await _carregar();
-    
-    if (!mounted) return;
   }
 
   Future<void> _removerDespesa(int idDespesa) async {
-    await database.deleteDespesa(idDespesa);
-    await _recalcularEAtualizarFrete();
+    await database.deletarDespesa(idDespesa);
     await _carregar();
   }
 
   @override
   Widget build(BuildContext context) {
-    final id = widget.frete.id;
-
     return WillPopScope(
       onWillPop: () async {
         Navigator.pop(context, true);
@@ -197,13 +152,9 @@ class _DespesasPageState extends State<DespesasPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Despesas'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.pop(context, true),
-          ),
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: id == null ? null : _adicionarDespesa,
+          onPressed: _adicionarDespesa,
           child: const Icon(Icons.add),
         ),
         body: Padding(
@@ -211,80 +162,48 @@ class _DespesasPageState extends State<DespesasPage> {
           child: carregando
               ? const Center(child: CircularProgressIndicator())
               : (despesas.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Nenhuma despesa cadastrada.',
-                        style: TextStyle(color: Colors.grey.shade600),
-                      ),
-                    )
+                  ? const Center(child: Text('Nenhuma despesa cadastrada.'))
                   : ListView.separated(
                       itemCount: despesas.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final d = despesas[index];
-
-                        final idDespesa = d.id ?? 0;
-                        final tipo = d.tipo;
-                        final obs = (d.observacao ?? '').trim();
-                        final valor = d.valor;
-
-                        return Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: const [
-                              BoxShadow(color: Colors.black12, blurRadius: 6),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.blue.withOpacity(0.1),
-                                ),
-                                child: const Icon(Icons.receipt_long, color: Colors.blue),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      tipo,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _formatador.format(valor),
-                                      style: const TextStyle(fontWeight: FontWeight.w700),
-                                    ),
-                                    if (obs.isNotEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        obs,
-                                        style: const TextStyle(color: Colors.grey),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => _removerDespesa(idDespesa),
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                              ),
-                            ],
-                          ),
-                        );
+                        return _itemDespesa(d);
                       },
                     )),
         ),
+      ),
+    );
+  }
+
+  Widget _itemDespesa(Despesa d) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.receipt_long, color: Colors.blue),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(d.tipo, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(_formatador.format(d.valor), style: const TextStyle(fontWeight: FontWeight.w700)),
+                if (d.observacao?.isNotEmpty ?? false)
+                  Text(d.observacao!, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => _removerDespesa(d.id!),
+            icon: const Icon(Icons.delete, color: Colors.red),
+          ),
+        ],
       ),
     );
   }
@@ -294,16 +213,11 @@ class ReaisInputFormatter extends TextInputFormatter {
   final _formatador = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
   @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return const TextEditingValue(text: '');
-
     final valor = double.parse(digits) / 100;
     final texto = _formatador.format(valor);
-
     return TextEditingValue(
       text: texto,
       selection: TextSelection.collapsed(offset: texto.length),

@@ -1,76 +1,57 @@
+import 'dart:typed_data';
+
+enum StatusFrete {
+  rascunho,
+  aguardandoPagamento,
+  pago,
+  motoristaSelecionado,
+  aguardandoComprovanteCarregamento,
+  carregamentoValidado,
+  emTransito,
+  aguardandoComprovanteEntrega,
+  entregaValidada,
+  finalizado,
+  cancelado,
+  emDisputa,
+  estornoEmAndamento
+}
+
 class Frete {
-  final int? id;
+  final Uint8List id; 
   final String empresa;
   final String responsavel;
   final String documento;
   final String telefone;
   final String origem;
   final String destino;
-  final double valorFrete;
-  final double valorPago;
-  final double valorFaltante;
-  final String statusPagamento;
-
-  final String statusFrete;
+  final double valorBase;
+  final double taxaMediacao;
+  final double taxasPsp;
+  final StatusFrete status;
+  final String? chavePixMotorista;
   final String? dataColeta;
   final String? dataEntrega;
-  final String? motivoRejeicao;
 
   Frete({
-    this.id,
+    required this.id,
     required this.empresa,
     required this.responsavel,
     required this.documento,
     required this.telefone,
     required this.origem,
     required this.destino,
-    required this.valorFrete,
-    required this.valorPago,
-    required this.valorFaltante,
-    required this.statusPagamento,
-    this.statusFrete = 'Pendente',
+    required this.valorBase,
+    this.taxaMediacao = 0.0,
+    this.taxasPsp = 0.0,
+    this.status = StatusFrete.rascunho,
+    this.chavePixMotorista,
     this.dataColeta,
     this.dataEntrega,
-    this.motivoRejeicao,
   });
 
-  Frete copyWith({
-    int? id,
-    String? empresa,
-    String? responsavel,
-    String? documento,
-    String? telefone,
-    String? origem,
-    String? destino,
-    double? valorFrete,
-    double? valorPago,
-    double? valorFaltante,
-    String? statusPagamento,
-    String? statusFrete,
-    String? dataColeta,
-    String? dataEntrega,
-    String? motivoRejeicao,
-  }) {
-    return Frete(
-      id: id ?? this.id,
-      empresa: empresa ?? this.empresa,
-      responsavel: responsavel ?? this.responsavel,
-      documento: documento ?? this.documento,
-      telefone: telefone ?? this.telefone,
-      origem: origem ?? this.origem,
-      destino: destino ?? this.destino,
-      valorFrete: valorFrete ?? this.valorFrete,
-      valorPago: valorPago ?? this.valorPago,
-      valorFaltante: valorFaltante ?? this.valorFaltante,
-      statusPagamento: statusPagamento ?? this.statusPagamento,
-      statusFrete: statusFrete ?? this.statusFrete,
-      dataColeta: dataColeta ?? this.dataColeta,
-      dataEntrega: dataEntrega ?? this.dataEntrega,
-      motivoRejeicao: motivoRejeicao ?? this.motivoRejeicao,
-    );
-  }
+  double get valorTotalEmbarcador => valorBase + taxaMediacao + taxasPsp;
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> paraMapa() {
     return {
       'id': id,
       'empresa': empresa,
@@ -79,77 +60,32 @@ class Frete {
       'telefone': telefone,
       'origem': origem,
       'destino': destino,
-      'valorFrete': valorFrete,
-      'valorPago': valorPago,
-      'valorFaltante': valorFaltante,
-      'statusPagamento': statusPagamento,
-      'statusFrete': statusFrete,
+      'valorBase': valorBase,
+      'taxaMediacao': taxaMediacao,
+      'taxasPsp': taxasPsp,
+      'status': status.index,
+      'chavePixMotorista': chavePixMotorista,
       'dataColeta': dataColeta,
       'dataEntrega': dataEntrega,
-      'motivoRejeicao': motivoRejeicao,
     };
   }
 
-  factory Frete.fromMap(Map<String, dynamic> map) {
-    double d(v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0.0;
-
+  factory Frete.doMapa(Map<String, dynamic> mapa) {
     return Frete(
-      id: map['id'] as int?,
-      empresa: map['empresa'],
-      responsavel: map['responsavel'],
-      documento: map['documento'],
-      telefone: map['telefone'],
-      origem: map['origem'],
-      destino: map['destino'],
-      valorFrete: d(map['valorFrete']),
-      valorPago: d(map['valorPago']),
-      valorFaltante: d(map['valorFaltante']),
-      statusPagamento: map['statusPagamento'],
-      statusFrete: (map['statusFrete'] ?? 'Pendente').toString(),
-      dataColeta: map['dataColeta']?.toString(),
-      dataEntrega: map['dataEntrega']?.toString(),
-      motivoRejeicao: map['motivoRejeicao']?.toString(),
-    );
-  }
-}
-
-// ADICIONADO: Classe Despesa necessária para o DB e ExibeFrete
-class Despesa {
-  final int? id;
-  final int freteId;
-  final String tipo;
-  final double valor;
-  final String? observacao;
-  final String criadoEm;
-
-  Despesa({
-    this.id,
-    required this.freteId,
-    required this.tipo,
-    required this.valor,
-    this.observacao,
-    required this.criadoEm,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'freteId': freteId,
-      'tipo': tipo,
-      'valor': valor,
-      'observacao': observacao,
-      'criadoEm': criadoEm,
-    };
-  }
-
-  factory Despesa.fromMap(Map<String, dynamic> map) {
-    return Despesa(
-      id: map['id'],
-      freteId: map['freteId'],
-      tipo: map['tipo'],
-      valor: (map['valor'] as num).toDouble(),
-      observacao: map['observacao'],
-      criadoEm: map['criadoEm'],
+      id: mapa['id'] as Uint8List,
+      empresa: mapa['empresa'],
+      responsavel: mapa['responsavel'],
+      documento: mapa['documento'],
+      telefone: mapa['telefone'],
+      origem: mapa['origem'],
+      destino: mapa['destino'],
+      valorBase: (mapa['valorBase'] as num).toDouble(),
+      taxaMediacao: (mapa['taxaMediacao'] as num).toDouble(),
+      taxasPsp: (mapa['taxasPsp'] as num).toDouble(),
+      status: StatusFrete.values[mapa['status'] as int],
+      chavePixMotorista: mapa['chavePixMotorista'],
+      dataColeta: mapa['dataColeta'],
+      dataEntrega: mapa['dataEntrega'],
     );
   }
 }

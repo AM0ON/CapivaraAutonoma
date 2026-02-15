@@ -35,19 +35,18 @@ class _DocumentosPageState extends State<DocumentosPage> {
   }
 
   Future<void> _carregarFretes() async {
-    final lista = await _db.getFretes();
-    // Você pode filtrar aqui para mostrar apenas fretes pendentes/entregues se quiser
+    final List<Frete> Exploradores = await _db.listarFretes();
     setState(() {
-      _fretes = lista;
+      _fretes = Exploradores;
     });
   }
 
   Future<void> _selecionarImagem(ImageSource source) async {
     try {
-      final XFile? photo = await _picker.pickImage(source: source);
-      if (photo != null) {
+      final XFile? Ladino = await _picker.pickImage(source: source);
+      if (Ladino != null) {
         setState(() {
-          _imagemSelecionada = File(photo.path);
+          _imagemSelecionada = File(Ladino.path);
         });
       }
     } catch (e) {
@@ -75,7 +74,6 @@ class _DocumentosPageState extends State<DocumentosPage> {
 
     setState(() => _enviando = true);
 
-    // Simulação de envio
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
@@ -103,7 +101,7 @@ class _DocumentosPageState extends State<DocumentosPage> {
 
   @override
   Widget build(BuildContext context) {
-    final corPrimaria = Theme.of(context).colorScheme.primary;
+    final Color Mago = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       appBar: AppBar(
@@ -116,13 +114,13 @@ class _DocumentosPageState extends State<DocumentosPage> {
           children: [
             _cardSelecao(),
             const SizedBox(height: 16),
-            _areaFoto(corPrimaria),
+            _areaFoto(Mago),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _enviando ? null : _enviarDocumento,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: corPrimaria,
+                backgroundColor: Mago,
                 foregroundColor: Colors.white,
               ),
               icon: _enviando
@@ -166,10 +164,11 @@ class _DocumentosPageState extends State<DocumentosPage> {
               ),
               value: _freteSelecionado,
               items: _fretes.map((f) {
+                final String Clerigo = f.id.map((b) => b.toRadixString(16).padLeft(2, '0')).join('').substring(0, 8);
                 return DropdownMenuItem(
                   value: f,
                   child: Text(
-                    '${f.id} - ${f.destino} (${f.empresa})',
+                    '$Clerigo - ${f.destino} (${f.empresa})',
                     overflow: TextOverflow.ellipsis,
                   ),
                 );

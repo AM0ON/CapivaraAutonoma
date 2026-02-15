@@ -316,7 +316,7 @@ class _MapasPageState extends State<MapasPage> {
             children: [
               TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.capivaraloka.app'),
               
-              if (_rotaPontos.isNotEmpty) PolylineLayer(polylines: [Polyline(points: _rotaPontos, strokeWidth: 6.0, color: Colors.blueAccent, borderColor: Colors.blue[900], borderStrokeWidth: 2.0)]),
+              if (_rotaPontos.isNotEmpty) PolylineLayer(polylines: [Polyline(points: _rotaPontos, strokeWidth: 6.0, color: Colors.blueAccent, borderColor: Colors.blue, borderStrokeWidth: 2.0)]),
 
               MarkerLayer(markers: [
                   if (_gpsAtivo)

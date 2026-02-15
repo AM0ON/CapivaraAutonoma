@@ -1,28 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'dart:typed_data';
+
 import '../database/frete_database.dart';
 import '../models/frete.dart';
 import 'relatorio_page.dart';
-import 'driver_id_page.dart';
 import 'exibefrete.dart';
-import 'premium.dart';
 import 'calculadora_frete_page.dart';
-import 'novo_frete_page.dart'; // Importado para permitir a edição
-
-// Controlador para atualizar a Home
-class HomeRefreshController extends ChangeNotifier {
-  void refresh() {
-    notifyListeners();
-  }
-}
+import 'novo_frete_page.dart';
 
 class HomePage extends StatefulWidget {
-  final VoidCallback onAddFrete;
-  final HomeRefreshController? controller;
+  final VoidCallback aoAdicionarFrete;
+  final ValueNotifier<int>? atualizador;
 
   const HomePage({
     super.key,
-    required this.onAddFrete,
-    this.controller,
+    required this.aoAdicionarFrete,
+    this.atualizador,
   });
 
   @override
@@ -32,144 +27,213 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final FreteDatabase database = FreteDatabase.instance;
 
-  List<Frete> fretes = [];
-  Map<int, double> totalDespesasPorFrete = {};
+  List<Frete> listaDeFretes = [];
+  Map<String, double> mapaDespesas = {};
+  bool carregando = true;
 
   @override
   void initState() {
     super.initState();
-    widget.controller?.addListener(carregar);
-    carregar();
+    carregarDados();
+    widget.atualizador?.addListener(carregarDados);
   }
 
   @override
   void dispose() {
-    widget.controller?.removeListener(carregar);
+    widget.atualizador?.removeListener(carregarDados);
     super.dispose();
   }
 
-  Future<void> carregar() async {
-    final result = await database.getFretes();
+  String _idParaString(Uint8List id) {
+    return id.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
 
-    final ids = <int>[];
-    for (final f in result) {
-      if (f.id != null) ids.add(f.id!);
+  Future<void> carregarDados() async {
+    setState(() => carregando = true);
+
+    final List<Frete> Exploradores = await database.listarFretes();
+    final Map<String, double> Arcanista = {};
+
+    for (var frete in Exploradores) {
+      final double custo = await database.calcularTotalDespesas(frete.id);
+      Arcanista[_idParaString(frete.id)] = custo;
     }
 
-    final totais = await database.getTotaisDespesasPorFrete(ids);
-
     if (!mounted) return;
-
     setState(() {
-      fretes = result;
-      totalDespesasPorFrete = totais;
+      listaDeFretes = Exploradores;
+      mapaDespesas = Arcanista;
+      carregando = false;
     });
   }
 
-  // Getters atualizados
-  int get totalPendentes =>
-      fretes.where((f) => f.statusFrete == 'Pendente').length;
-
-  // Fórmula resumida do Lucro Real
-  double get totalLucro => fretes.fold(
-      0, (s, f) => s + (f.valorPago - (totalDespesasPorFrete[f.id] ?? 0)));
-
-  // Saudação com Emojis Dinâmicos
-  String get saudacao {
-    final hora = DateTime.now().hour;
-    if (hora >= 6 && hora < 12) return 'Bom dia ☀️';
-    if (hora >= 12 && hora < 18) return 'Boa tarde 🌤️';
-    return 'Boa noite 🌙';
+  double get lucroTotalEstimado {
+    return listaDeFretes.fold(0.0, (Paladino, Mercador) {
+      final despesa = mapaDespesas[_idParaString(Mercador.id)] ?? 0.0;
+      return Paladino + (Mercador.valorBase - despesa);
+    });
   }
 
-  List<BoxShadow> _sombraPadrao(BuildContext context) {
-    final escuro = Theme.of(context).brightness == Brightness.dark;
-    return [
-      BoxShadow(
-        color: escuro ? Colors.black.withOpacity(0.35) : Colors.black12,
-        blurRadius: escuro ? 10 : 6,
-        offset: const Offset(0, 6),
-      ),
-    ];
+  double get despesasTotais {
+    return mapaDespesas.values.fold(0.0, (soma, despesa) => soma + despesa);
   }
 
-  // Funções de Gerenciamento de Frete (Opções e Edição)
-  void _mostrarOpcoesFrete(Frete frete) {
-    showModalBottomSheet(
+  int get fretesPendentes {
+    return listaDeFretes.where((Ladino) => Ladino.status == StatusFrete.aguardandoPagamento).length;
+  }
+
+  String obterSaudacao() {
+    final int Cronomante = DateTime.now().hour;
+    if (Cronomante < 12) return 'Bom dia';
+    if (Cronomante < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }
+
+  Future<void> _adicionarDespesaRapida(Frete frete) async {
+    final Uint8List Ladino = frete.id;
+    final ValueNotifier<String> Mago = ValueNotifier<String>('Combustível');
+    final TextEditingController Monge = TextEditingController();
+    final TextEditingController Clerigo = TextEditingController();
+
+    final bool? Bardo = await showDialog<bool>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (context) {
-        return SafeArea(
-          child: Column(
+        return AlertDialog(
+          title: const Text('Adicionar Despesa Rápida', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.remove_red_eye_outlined),
-                title: const Text('Visualizar Detalhes',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final atualizado = await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ExibeFretePage(frete: frete),
+              ValueListenableBuilder<String>(
+                valueListenable: Mago,
+                builder: (context, valorTipo, _) {
+                  return DropdownButtonFormField<String>(
+                    value: valorTipo,
+                    items: const [
+                      DropdownMenuItem(value: 'Combustível', child: Text('Combustível')),
+                      DropdownMenuItem(value: 'Alimentação', child: Text('Alimentação')),
+                      DropdownMenuItem(value: 'Pedágio', child: Text('Pedágio')),
+                      DropdownMenuItem(value: 'Manutenção', child: Text('Manutenção')),
+                      DropdownMenuItem(value: 'Outros', child: Text('Outros')),
+                    ],
+                    onChanged: (v) => Mago.value = v ?? 'Combustível',
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo',
+                      border: OutlineInputBorder(),
                     ),
                   );
-                  if (atualizado == true) carregar();
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Editar Frete',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _abrirEdicao(frete);
-                },
+              const SizedBox(height: 12),
+              TextField(
+                controller: Monge,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [ReaisInputFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Valor',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: Clerigo,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Observação (Opcional)',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Salvar'),
+            ),
+          ],
         );
       },
     );
+
+    if (Bardo == true) {
+      final String Barbaro = Monge.text
+          .replaceAll('R\$', '')
+          .replaceAll(' ', '')
+          .replaceAll('.', '')
+          .replaceAll(',', '.')
+          .trim();
+      final double Arqueiro = double.tryParse(Barbaro) ?? 0.0;
+
+      if (Arqueiro > 0) {
+        final Despesa Paladino = Despesa(
+          freteId: Ladino,
+          tipo: Mago.value,
+          valor: Arqueiro,
+          observacao: Clerigo.text.trim(),
+          criadoEm: DateTime.now().toIso8601String(),
+        );
+
+        await database.inserirDespesa(Paladino);
+        carregarDados();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Despesa adicionada com sucesso!'), backgroundColor: Colors.green),
+          );
+        }
+      }
+    }
   }
 
-  void _abrirEdicao(Frete frete) {
+  void _mostrarOpcoes(Frete frete) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.9,
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
             Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2))),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text("Editar Frete",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              margin: const EdgeInsets.only(top: 8, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
             ),
-            Expanded(
-              child: NovoFretePage(
-                frete: frete,
-                onSaved: () {
-                  Navigator.pop(context);
-                  carregar();
-                },
-              ),
+            ListTile(
+              leading: const Icon(Icons.edit, color: Colors.blue),
+              title: const Text('Editar Frete', style: TextStyle(fontWeight: FontWeight.bold)),
+              onTap: () async {
+                Navigator.pop(context);
+                final bool? Guerreiro = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(title: const Text('Editar Frete', style: TextStyle(fontWeight: FontWeight.bold))),
+                      body: NovoFretePage(
+                        frete: frete,
+                        aoSalvar: () {
+                          Navigator.pop(context, true);
+                        },
+                      ),
+                    ),
+                  ),
+                );
+                if (Guerreiro == true) carregarDados();
+              },
             ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.receipt_long, color: Colors.redAccent),
+              title: const Text('Adicionar Despesa Rápida', style: TextStyle(fontWeight: FontWeight.bold)),
+              onTap: () async {
+                Navigator.pop(context);
+                await _adicionarDespesaRapida(frete);
+              },
+            ),
+            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -179,425 +243,233 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: widget.onAddFrete,
-        child: const Icon(Icons.add),
-      ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: RefreshIndicator(
+          onRefresh: carregarDados,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildCabecalho(),
+              const SizedBox(height: 20),
+              _buildResumoFinanceiro(),
+              const SizedBox(height: 20),
+              _buildAcoesRapidas(),
+              const SizedBox(height: 24),
+              _buildListaTitulo(),
+              const SizedBox(height: 12),
+              if (carregando)
+                const Center(child: CircularProgressIndicator())
+              else if (listaDeFretes.isEmpty)
+                _buildEstadoVazio()
+              else
+                ...listaDeFretes.map((f) => _buildCardFrete(f)),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: widget.aoAdicionarFrete,
+        label: const Text('Novo Frete', style: TextStyle(fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildCabecalho() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _cabecalho(),
-            const SizedBox(height: 16),
-            _cardsResumo(),
-            const SizedBox(height: 16),
-            _cardsAcoes(),
-            const SizedBox(height: 20),
-            if (fretes.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(30.0),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.local_shipping_outlined,
-                          size: 60, color: Colors.grey.withOpacity(0.5)),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Nenhum frete cadastrado',
-                        style: TextStyle(
-                            color: Colors.grey.withOpacity(0.8),
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ...fretes.map(_freteCard),
+            Text('${obterSaudacao()}, Thiago',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('Bem-vindo ao Meu Frete',
+              style: TextStyle(color: Colors.grey, fontSize: 14)),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _cabecalho() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$saudacao',
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        const Text('Resumo dos Fretes',
-            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+        const CircleAvatar(
+          backgroundColor: Colors.blueAccent,
+          child: Icon(Icons.person, color: Colors.white),
+        )
       ],
     );
   }
 
-  Widget _cardsResumo() {
-    return Row(
-      children: [
-        Expanded(
-          child: _cardResumo(
-            titulo: 'Hoje',
-            valor: '${fretes.length}',
-            icone: Icons.today,
-          ),
-        ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: _cardResumo(
-            titulo: 'Lucro Real', // Alterado para refletir a nova métrica
-            valor: 'R\$ ${totalLucro.toStringAsFixed(2)}',
-            icone: Icons.trending_up, // Ícone de lucro
-          ),
-        ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: _cardResumo(
-            titulo: 'Pendentes',
-            valor: '$totalPendentes',
-            icone: Icons.schedule,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _cardResumo({
-    required String titulo,
-    required String valor,
-    required IconData icone,
-  }) {
-    final corPrimaria = Theme.of(context).colorScheme.primary;
-
+  Widget _buildResumoFinanceiro() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: _sombraPadrao(context),
+        gradient: LinearGradient(colors: [Colors.blue.shade800, Colors.blue.shade600]),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icone, color: corPrimaria, size: 28),
-          const SizedBox(height: 10),
-          Text(titulo,
-              style:
-                  const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          const Text('LUCRO ESTIMADO', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(
-            valor,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
+          Text('R\$ ${lucroTotalEstimado.toStringAsFixed(2)}',
+            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+          if (despesasTotais > 0) ...[
+            const SizedBox(height: 4),
+            Text('Despesas: -R\$ ${despesasTotais.toStringAsFixed(2)}',
+              style: TextStyle(color: Colors.red.shade200, fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _infoMiniCard('Fretes', '${listaDeFretes.length}'),
+              _infoMiniCard('Pendentes', '$fretesPendentes'),
+            ],
+          )
         ],
       ),
     );
   }
 
-  Widget _cardsAcoes() {
-    return Row(
+  Widget _infoMiniCard(String label, String valor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _cardAcao(
-            titulo: 'Relatório',
-            icone: Icons.bar_chart,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const RelatorioPage(),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(width: 18),
-        Expanded(
-          child: CardAcaoPremium(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const PremiumPage(),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(width: 18),
-        Expanded(
-          child: _cardAcao(
-            titulo: 'Calculadora',
-            icone: Icons.calculate_rounded,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const CalculadoraFretePage(),
-                ),
-              );
-            },
-          ),
-        ),
+        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+        Text(valor, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
       ],
     );
   }
 
-  Widget _cardAcao({
-    required String titulo,
-    required IconData icone,
-    required VoidCallback onTap,
-  }) {
-    final corPrimaria = Theme.of(context).colorScheme.primary;
+  Widget _buildCardFrete(Frete frete) {
+    final double despesaDoCard = mapaDespesas[_idParaString(frete.id)] ?? 0.0;
+    final double valorLiquido = frete.valorBase - despesaDoCard;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 86,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: _sombraPadrao(context),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icone, color: corPrimaria, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              titulo,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _freteCard(Frete frete) {
-    final corStatus = _corStatusFrete(frete.statusFrete);
-    final id = frete.id;
-    final despesas = (id != null) ? (totalDespesasPorFrete[id] ?? 0.0) : 0.0;
-    final valorBruto = frete.valorFrete;
-    var valorLiquido = frete.valorFrete - frete.valorFaltante - despesas;
-    if (valorLiquido < 0) valorLiquido = 0;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () => _mostrarOpcoesFrete(frete), // Alterado para mostrar opções
+    return GestureDetector(
+      onTap: () async {
+        final bool? Guerreiro = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ExibeFretePage(frete: frete))
+        );
+        if (Guerreiro == true) carregarDados();
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: _sombraPadrao(context),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${frete.origem} → ${frete.destino}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: corStatus,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    frete.statusFrete,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(frete.empresa,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(child: _linhaValor('Total', valorBruto)),
-                Expanded(child: _linhaValor('Pago', frete.valorPago)),
-                Expanded(child: _linhaValor('Aberto', frete.valorFaltante)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(child: _linhaValor('Despesas', despesas)),
-                Expanded(child: _linhaValor('Parcial Liquido', valorLiquido)),
-                const Expanded(child: SizedBox()),
-              ],
-            ),
-            if ((frete.motivoRejeicao ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Motivo: ${frete.motivoRejeicao}',
-                style: const TextStyle(
-                    color: Colors.grey, fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _obterCorStatus(frete.status).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12)
               ),
-            ],
+              child: Icon(Icons.local_shipping_outlined, color: _obterCorStatus(frete.status)),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${frete.origem} → ${frete.destino}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(frete.empresa, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  if (despesaDoCard > 0)
+                    Text('Despesas: -R\$ ${despesaDoCard.toStringAsFixed(2)}',
+                      style: const TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('R\$ ${valorLiquido.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(_obterLabelStatus(frete.status),
+                  style: TextStyle(
+                    color: _obterCorStatus(frete.status),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold
+                  )),
+              ],
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _mostrarOpcoes(frete),
+              child: const Icon(Icons.more_vert, color: Colors.grey),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Color _corStatusFrete(String status) {
+  Color _obterCorStatus(StatusFrete status) {
     switch (status) {
-      case 'Entregue':
-        return Colors.green;
-      case 'Coletado':
-        return Colors.blue;
-      case 'Rejeitado':
-        return Colors.red;
-      default:
-        return Colors.orange;
+      case StatusFrete.finalizado: return Colors.green;
+      case StatusFrete.emTransito: return Colors.blue;
+      case StatusFrete.cancelado: return Colors.red;
+      case StatusFrete.pago: return Colors.teal;
+      default: return Colors.orange;
     }
   }
 
-  Widget _linhaValor(String label, double valor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  String _obterLabelStatus(StatusFrete status) {
+    return status.name.toUpperCase();
+  }
+
+  Widget _buildAcoesRapidas() {
+    return Row(
       children: [
-        Text(label,
-            style: const TextStyle(
-                color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 2),
-        Text(
-          'R\$ ${valor.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        Expanded(child: _botaoAcao('Calculadora', Icons.calculate_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculadoraFretePage())))),
+        const SizedBox(width: 12),
+        Expanded(child: _botaoAcao('Relatórios', Icons.bar_chart_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RelatorioPage())))),
       ],
     );
   }
-}
 
-// O Widget CardAcaoPremium permanece o mesmo, garantindo o estilo Premium e as animações de escala.
-class CardAcaoPremium extends StatefulWidget {
-  final VoidCallback onTap;
-
-  const CardAcaoPremium({
-    super.key,
-    required this.onTap,
-  });
-
-  @override
-  State<CardAcaoPremium> createState() => _CardAcaoPremiumState();
-}
-
-class _CardAcaoPremiumState extends State<CardAcaoPremium>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controlador;
-  late final Animation<double> _escala;
-
-  @override
-  void initState() {
-    super.initState();
-    _controlador = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-
-    _escala = Tween<double>(begin: 1.0, end: 1.03).animate(
-      CurvedAnimation(parent: _controlador, curve: Curves.easeInOut),
+  Widget _botaoAcao(String label, IconData icone, VoidCallback acao) {
+    return ElevatedButton.icon(
+      onPressed: acao,
+      icon: Icon(icone, size: 18),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 
-  @override
-  void dispose() {
-    _controlador.dispose();
-    super.dispose();
+  Widget _buildListaTitulo() {
+    return const Text('Últimos Fretes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _escala,
-      child: InkWell(
-        onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: 86,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.deepPurple.shade700,
-                Colors.indigo.shade600,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-                color: Colors.black.withOpacity(0.25),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                alignment: Alignment.topRight,
-                children: [
-                  const Icon(
-                    Icons.workspace_premium,
-                    color: Colors.white,
-                    size: 30,
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.amber,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'PRO',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Premium',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ),
+  Widget _buildEstadoVazio() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(40),
+        child: Text('Nenhum frete registado.', style: TextStyle(color: Colors.grey)),
       ),
+    );
+  }
+}
+
+class ReaisInputFormatter extends TextInputFormatter {
+  final _formatador = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return const TextEditingValue(text: '');
+    final valor = double.parse(digits) / 100;
+    final texto = _formatador.format(valor);
+    return TextEditingValue(
+      text: texto,
+      selection: TextSelection.collapsed(offset: texto.length),
     );
   }
 }

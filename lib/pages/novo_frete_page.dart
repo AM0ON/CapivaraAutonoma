@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:typed_data';
 
 import '../database/frete_database.dart';
 import '../models/frete.dart';
 import '../services/cidades.dart';
 
 class NovoFretePage extends StatefulWidget {
-  final VoidCallback onSaved;
+  final VoidCallback aoSalvar;
   final Frete? frete;
 
   const NovoFretePage({
     super.key,
-    required this.onSaved,
+    required this.aoSalvar,
     this.frete,
   });
 
@@ -24,131 +26,89 @@ class _NovoFretePageState extends State<NovoFretePage> {
   final _formKey = GlobalKey<FormState>();
 
   final empresa = TextEditingController();
-  final contratante = TextEditingController();
+  final responsavel = TextEditingController();
   final documento = TextEditingController();
   final telefone = TextEditingController();
-
   final origem = TextEditingController();
   final destino = TextEditingController();
+  final valorBase = TextEditingController();
 
   final focoOrigem = FocusNode();
   final focoDestino = FocusNode();
-
-  final valorFrete = TextEditingController();
-  final valorPago = TextEditingController();
-  final saldoAberto = TextEditingController();
 
   final FreteDatabase database = FreteDatabase.instance;
 
   @override
   void initState() {
     super.initState();
-
     CidadeService.init();
-
-    telefone.text = '+55 ';
-
+    
     if (widget.frete != null) {
       final f = widget.frete!;
       empresa.text = f.empresa;
-      contratante.text = f.responsavel;
+      responsavel.text = f.responsavel;
       documento.text = f.documento;
-      telefone.text = f.telefone.isNotEmpty ? f.telefone : '+55 ';
+      telefone.text = f.telefone;
       origem.text = f.origem;
       destino.text = f.destino;
-
-      valorFrete.text = f.valorFrete.toStringAsFixed(2).replaceAll('.', ',');
-      valorPago.text = f.valorPago.toStringAsFixed(2).replaceAll('.', ',');
-
-      final aberto = (f.valorFrete - f.valorPago) < 0 ? 0 : (f.valorFrete - f.valorPago);
-      saldoAberto.text = aberto.toStringAsFixed(2).replaceAll('.', ',');
+      valorBase.text = f.valorBase.toStringAsFixed(2).replaceAll('.', ',');
+    } else {
+      telefone.text = '+55 ';
     }
-
-    valorFrete.addListener(_recalcularSaldo);
-    valorPago.addListener(_recalcularSaldo);
-    _recalcularSaldo();
   }
 
   @override
   void dispose() {
-    valorFrete.removeListener(_recalcularSaldo);
-    valorPago.removeListener(_recalcularSaldo);
-
     focoOrigem.dispose();
     focoDestino.dispose();
-
     empresa.dispose();
-    contratante.dispose();
+    responsavel.dispose();
     documento.dispose();
     telefone.dispose();
     origem.dispose();
     destino.dispose();
-    valorFrete.dispose();
-    valorPago.dispose();
-    saldoAberto.dispose();
-
+    valorBase.dispose();
     super.dispose();
   }
 
-  double _parseMoney(String value) {
-    final cleaned = value.trim().replaceAll('.', '').replaceAll(',', '.');
-    return double.tryParse(cleaned) ?? 0.0;
-  }
-
-  void _recalcularSaldo() {
-    final total = _parseMoney(valorFrete.text);
-    final pago = _parseMoney(valorPago.text);
-
-    var aberto = total - pago;
-    if (aberto < 0) aberto = 0;
-
-    final txt = aberto.toStringAsFixed(2).replaceAll('.', ',');
-    if (saldoAberto.text != txt) {
-      saldoAberto.text = txt;
-    }
-  }
-
-  String _statusPagamento(double total, double pago, double aberto) {
-    if (total <= 0) return 'Pendente';
-    if (aberto <= 0) return 'Pago';
-    if (pago > 0) return 'Parcial';
-    return 'Pendente';
+  double _sanitizarMoeda(String valor) {
+    final limpo = valor.trim().replaceAll('.', '').replaceAll(',', '.');
+    return double.tryParse(limpo) ?? 0.0;
   }
 
   Future<void> salvar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final total = _parseMoney(valorFrete.text);
-    final pago = _parseMoney(valorPago.text);
+    final base = _sanitizarMoeda(valorBase.text);
+    final Uint8List idSeguro = widget.frete?.id ?? Uint8List.fromList(const Uuid().v7obj().toBytes());
 
-    var aberto = total - pago;
-    if (aberto < 0) aberto = 0;
-
-    final frete = Frete(
-      id: widget.frete?.id,
+    final novoFrete = Frete(
+      id: idSeguro,
       empresa: empresa.text.trim(),
-      responsavel: contratante.text.trim(),
+      responsavel: responsavel.text.trim(),
       documento: documento.text.trim(),
       telefone: telefone.text.trim(),
       origem: origem.text.trim(),
       destino: destino.text.trim(),
-      valorFrete: total,
-      valorPago: pago,
-      valorFaltante: aberto,
-      statusPagamento: _statusPagamento(total, pago, aberto),
-      statusFrete: widget.frete?.statusFrete ?? 'Pendente',
+      valorBase: base,
+      taxaMediacao: base * 0.05,
+      taxasPsp: widget.frete?.taxasPsp ?? 0.0,
+      
+      // CORREÇÃO AQUI: Se for um frete novo, entra como 'aguardandoPagamento'
+      status: widget.frete?.status ?? StatusFrete.aguardandoPagamento,
+      
+      chavePixMotorista: widget.frete?.chavePixMotorista,
       dataColeta: widget.frete?.dataColeta,
       dataEntrega: widget.frete?.dataEntrega,
-      motivoRejeicao: widget.frete?.motivoRejeicao,
     );
 
     if (widget.frete == null) {
-      await database.inserirFrete(frete);
+      await database.inserirFrete(novoFrete);
     } else {
-      await database.updateFrete(frete);
+      await database.atualizarFrete(novoFrete);
     }
 
-    widget.onSaved();
+    widget.aoSalvar();
   }
 
   @override
@@ -158,92 +118,59 @@ class _NovoFretePageState extends State<NovoFretePage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
-          _textField(
-            label: 'Empresa',
+          _campoTexto(
+            rotulo: 'Empresa Embarcadora',
             controller: empresa,
-            icon: Icons.business,
-            validator: (v) => v == null || v.isEmpty ? 'Informe a empresa' : null,
+            icone: Icons.business,
+            validador: (v) => v == null || v.isEmpty ? 'Campo obrigatório' : null,
           ),
-          _textField(
-            label: 'Contratante',
-            controller: contratante,
-            icon: Icons.person,
-            validator: (v) => v == null || v.isEmpty ? 'Informe o contratante' : null,
+          _campoTexto(
+            rotulo: 'Nome do Responsável',
+            controller: responsavel,
+            icone: Icons.person_outline,
+            validador: (v) => v == null || v.isEmpty ? 'Campo obrigatório' : null,
           ),
-          _textField(
-            label: 'Documento de identificação (CNPJ ou CPF)',
+          _campoTexto(
+            rotulo: 'CPF ou CNPJ',
             controller: documento,
-            icon: Icons.badge,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[\d\.\-\/]')),
-            ],
-            validator: (v) => v == null || v.isEmpty ? 'Informe o documento' : null,
+            icone: Icons.description_outlined,
+            teclado: TextInputType.number,
+            formatadores: [FilteringTextInputFormatter.digitsOnly],
+            validador: (v) => v == null || v.isEmpty ? 'Campo obrigatório' : null,
           ),
-          _textField(
-            label: 'Telefone',
+          _campoTexto(
+            rotulo: 'WhatsApp / Telefone',
             controller: telefone,
-            icon: Icons.phone,
-            keyboardType: TextInputType.phone,
-            inputFormatters: [
-              BrasilPhonePrefixFormatter(),
-            ],
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Informe o telefone';
-              if (!v.startsWith('+55')) return 'O telefone deve iniciar com +55';
-              final digits = v.replaceAll(RegExp(r'\D'), '');
-              if (digits.length < 12) return 'Telefone incompleto';
-              return null;
-            },
+            icone: Icons.phone_android,
+            teclado: TextInputType.phone,
+            validador: (v) => v == null || v.length < 10 ? 'Telefone inválido' : null,
           ),
-          _cityField(
-            label: 'Origem',
+          _campoCidade(
+            rotulo: 'Cidade de Origem',
             controller: origem,
-            icon: Icons.my_location,
-            validator: (v) => v == null || v.isEmpty ? 'Informe a origem' : null,
+            icone: Icons.location_on_outlined,
           ),
-          _cityField(
-            label: 'Destino',
+          _campoCidade(
+            rotulo: 'Cidade de Destino',
             controller: destino,
-            icon: Icons.location_on,
-            validator: (v) => v == null || v.isEmpty ? 'Informe o destino' : null,
+            icone: Icons.flag_outlined,
           ),
-          _textField(
-            label: 'Valor do Frete',
-            controller: valorFrete,
-            icon: Icons.local_shipping,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[\d,\.]')),
-            ],
-            validator: (v) {
-              final total = _parseMoney(v ?? '');
-              if (total <= 0) return 'Informe o valor do frete';
-              return null;
-            },
+          _campoTexto(
+            rotulo: 'Valor Acertado com Motorista (R\$)',
+            controller: valorBase,
+            icone: Icons.monetization_on_outlined,
+            teclado: const TextInputType.numberWithOptions(decimal: true),
+            validador: (v) => _sanitizarMoeda(v ?? '') <= 0 ? 'Valor inválido' : null,
           ),
-          _textField(
-            label: 'Valor pago',
-            controller: valorPago,
-            icon: Icons.attach_money,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[\d,\.]')),
-            ],
-            validator: (v) {
-              final pago = _parseMoney(v ?? '');
-              final total = _parseMoney(valorFrete.text);
-              if (pago < 0) return 'Valor inválido';
-              if (total > 0 && pago > total) return 'Pago não pode ser maior que o frete';
-              return null;
-            },
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 32),
           SizedBox(
-            height: 52,
+            height: 56,
             child: ElevatedButton(
               onPressed: salvar,
-              child: const Text('Salvar Frete'),
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text('SALVAR NO MEU FRETE', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -251,90 +178,54 @@ class _NovoFretePageState extends State<NovoFretePage> {
     );
   }
 
-  Widget _textField({
-    required String label,
+  Widget _campoTexto({
+    required String rotulo,
     required TextEditingController controller,
-    required IconData icon,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
+    required IconData icone,
+    TextInputType? teclado,
+    List<TextInputFormatter>? formatadores,
+    String? Function(String?)? validador,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: controller,
-        keyboardType: keyboardType,
-        inputFormatters: inputFormatters,
-        validator: validator,
+        keyboardType: teclado,
+        inputFormatters: formatadores,
+        validator: validador,
         decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon),
+          labelText: rotulo,
+          prefixIcon: Icon(icone),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
     );
   }
 
-  Widget _cityField({
-    required String label,
+  Widget _campoCidade({
+    required String rotulo,
     required TextEditingController controller,
-    required IconData icon,
-    String? Function(String?)? validator,
+    required IconData icone,
   }) {
-    final foco = controller == origem ? focoOrigem : focoDestino;
-
+    final node = controller == origem ? focoOrigem : focoDestino;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: TypeAheadField<String>(
         controller: controller,
-        focusNode: foco,
-        debounceDuration: const Duration(milliseconds: 200),
-        suggestionsCallback: (pattern) {
-          return CidadeService.search(pattern);
-        },
-        emptyBuilder: (context) => const SizedBox.shrink(),
-        builder: (context, textController, focusNode) {
-          return TextFormField(
-            controller: textController,
-            focusNode: focusNode,
-            validator: (_) => validator?.call(textController.text),
-            decoration: InputDecoration(
-              labelText: label,
-              prefixIcon: Icon(icon),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-          );
-        },
-        itemBuilder: (context, suggestion) {
-          return ListTile(title: Text(suggestion));
-        },
-        onSelected: (suggestion) {
-          controller.text = suggestion;
-          controller.selection = TextSelection.collapsed(offset: controller.text.length);
-          FocusManager.instance.primaryFocus?.unfocus();
-        },
+        focusNode: node,
+        builder: (context, controller, focusNode) => TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: rotulo,
+            prefixIcon: Icon(icone),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+        suggestionsCallback: (busca) => CidadeService.search(busca),
+        itemBuilder: (context, sugestao) => ListTile(title: Text(sugestao)),
+        onSelected: (sugestao) => controller.text = sugestao,
       ),
-    );
-  }
-}
-
-class BrasilPhonePrefixFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    var text = newValue.text.replaceAll(RegExp(r'[^0-9\+]'), '');
-
-    if (!text.startsWith('+55')) {
-      text = '+55 ${text.replaceFirst(RegExp(r'^55'), '')}';
-    }
-
-    if (text == '+55') text = '+55 ';
-
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

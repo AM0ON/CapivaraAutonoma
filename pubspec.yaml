@@ -21,17 +21,17 @@ dependencies:
 
   # --- Funcionalidades do Sistema ---
   image_picker: ^1.0.7       # Câmera e Galeria
-  permission_handler: ^11.3.0 # Permissões Android 13+
-  share_plus: ^10.0.0        # Compartilhar PDF
+  permission_handler: ^12.0.1 # Permissões Android 13+
+  share_plus: ^12.0.1        # Compartilhar PDF
   url_launcher: ^6.2.5
-  geolocator: ^10.1.0        # GPS
+  geolocator: ^14.0.2        # GPS
 
   # --- PDF e Impressão ---
   pdf: ^3.10.7
   printing: ^5.12.0
 
   # --- Mapas ---
-  flutter_map: ^6.1.0
+  flutter_map: ^8.2.2
   latlong2: ^0.9.0
 
   # --- Utilitários e Segurança ---
@@ -49,10 +49,10 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0 # Mantive no 3.0.0 pois o 6.0.0 as vezes pede Dart > 3.2
+  flutter_lints: ^6.0.0 # Mantive no 3.0.0 pois o 6.0.0 as vezes pede Dart > 3.2
   
   # Ferramentas de geração (só rodam no PC do dev)
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.0
   flutter_dynamic_launcher_icon: ^0.0.2
 
