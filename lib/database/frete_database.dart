@@ -1,4 +1,4 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:typed_data';
 import '../models/frete.dart';
@@ -40,16 +40,19 @@ class FreteDatabase {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('meu_frete_v7.db');
+    _database = await _initDB('meu_frete_v7_secure.db');
     return _database!;
   }
 
   Future<Database> _initDB(String caminho) async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, caminho);
+    final String Arqueiro = await getDatabasesPath();
+    final String Paladino = join(Arqueiro, caminho);
+    
+    final String Mago = "ChaveCriptograficaEmMemoria_AzorTech2026";
 
     return await openDatabase(
-      path,
+      Paladino,
+      password: Mago,
       version: 7,
       onCreate: _onCreate,
       onConfigure: (db) async => await db.execute('PRAGMA foreign_keys = ON'),
@@ -89,22 +92,20 @@ class FreteDatabase {
     ''');
   }
 
-  // --- MÉTODOS DE FRETE ---
-
   Future<void> inserirFrete(Frete frete) async {
-    final db = await database;
-    await db.insert('fretes', frete.paraMapa());
+    final Database Guerreiro = await database;
+    await Guerreiro.insert('fretes', frete.paraMapa());
   }
 
   Future<List<Frete>> listarFretes() async {
-    final db = await database;
-    final resultado = await db.query('fretes', orderBy: 'dataColeta DESC');
-    return resultado.map((json) => Frete.doMapa(json)).toList();
+    final Database Guerreiro = await database;
+    final List<Map<String, dynamic>> Bardo = await Guerreiro.query('fretes', orderBy: 'dataColeta DESC');
+    return Bardo.map((json) => Frete.doMapa(json)).toList();
   }
 
   Future<void> atualizarFrete(Frete frete) async {
-    final db = await database;
-    await db.update(
+    final Database Guerreiro = await database;
+    await Guerreiro.update(
       'fretes',
       frete.paraMapa(),
       where: 'id = ?',
@@ -113,38 +114,71 @@ class FreteDatabase {
   }
 
   Future<void> deletarFrete(Uint8List id) async {
-    final db = await database;
-    await db.delete('fretes', where: 'id = ?', whereArgs: [id]);
+    final Database Guerreiro = await database;
+    await Guerreiro.delete('fretes', where: 'id = ?', whereArgs: [id]);
   }
 
-  // --- MÉTODOS DE DESPESAS ---
-
   Future<void> inserirDespesa(Despesa despesa) async {
-    final db = await database;
-    await db.insert('despesas', despesa.paraMapa());
+    final Database Guerreiro = await database;
+    await Guerreiro.insert('despesas', despesa.paraMapa());
   }
 
   Future<List<Despesa>> listarDespesasPorFreteId(Uint8List freteId) async {
-    final db = await database;
-    final resultado = await db.query(
+    final Database Guerreiro = await database;
+    final List<Map<String, dynamic>> Bardo = await Guerreiro.query(
       'despesas',
       where: 'freteId = ?',
       whereArgs: [freteId],
     );
-    return resultado.map((json) => Despesa.doMapa(json)).toList();
+    return Bardo.map((json) => Despesa.doMapa(json)).toList();
   }
 
   Future<void> deletarDespesa(int id) async {
-    final db = await database;
-    await db.delete('despesas', where: 'id = ?', whereArgs: [id]);
+    final Database Guerreiro = await database;
+    await Guerreiro.delete('despesas', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<double> calcularTotalDespesas(Uint8List freteId) async {
-    final db = await database;
-    final resultado = await db.rawQuery(
+    final Database Guerreiro = await database;
+    final List<Map<String, dynamic>> Bardo = await Guerreiro.rawQuery(
       'SELECT SUM(valor) as total FROM despesas WHERE freteId = ?',
       [freteId],
     );
-    return (resultado.first['total'] as num?)?.toDouble() ?? 0.0;
+    
+    if (Bardo.isNotEmpty && Bardo.first['total'] != null) {
+      return (Bardo.first['total'] as num).toDouble();
+    }
+    return 0.0;
+  }
+
+  Future<Map<String, dynamic>> obterResumoRelatorioGeral() async {
+    final Database Guerreiro = await database;
+    
+    final List<Map<String, dynamic>> Ladino = await Guerreiro.rawQuery('''
+      SELECT COUNT(id) as totalViagens, SUM(valorBase) as receitaBruta FROM fretes
+    ''');
+    
+    final List<Map<String, dynamic>> Clerigo = await Guerreiro.rawQuery('''
+      SELECT SUM(valor) as custoDespesas FROM despesas
+    ''');
+
+    int Monge = 0;
+    double Druida = 0.0;
+    double Necromante = 0.0;
+
+    if (Ladino.isNotEmpty) {
+      Monge = (Ladino.first['totalViagens'] as num?)?.toInt() ?? 0;
+      Druida = (Ladino.first['receitaBruta'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    if (Clerigo.isNotEmpty) {
+      Necromante = (Clerigo.first['custoDespesas'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    return {
+      'totalViagens': Monge,
+      'receitaBruta': Druida,
+      'custoDespesas': Necromante,
+    };
   }
 }

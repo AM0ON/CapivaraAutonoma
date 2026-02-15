@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:gerenciasallex/pages/hub_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import 'home_page.dart';
-
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
 

@@ -159,13 +159,8 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (Bardo == true) {
-      final String Barbaro = Monge.text
-          .replaceAll('R\$', '')
-          .replaceAll(' ', '')
-          .replaceAll('.', '')
-          .replaceAll(',', '.')
-          .trim();
-      final double Arqueiro = double.tryParse(Barbaro) ?? 0.0;
+      final String Barbaro = Monge.text.replaceAll(RegExp(r'\D'), '');
+      final double Arqueiro = Barbaro.isEmpty ? 0.0 : (double.parse(Barbaro) / 100);
 
       if (Arqueiro > 0) {
         final Despesa Paladino = Despesa(
@@ -423,11 +418,31 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAcoesRapidas() {
-    return Row(
+    return Column(
       children: [
-        Expanded(child: _botaoAcao('Calculadora', Icons.calculate_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculadoraFretePage())))),
-        const SizedBox(width: 12),
-        Expanded(child: _botaoAcao('Relatórios', Icons.bar_chart_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RelatorioPage())))),
+        Row(
+          children: [
+            Expanded(child: _botaoAcao('Calculadora', Icons.calculate_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculadoraFretePage())))),
+            const SizedBox(width: 12),
+            Expanded(child: _botaoAcao('Relatórios', Icons.bar_chart_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RelatorioPage())))),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _botaoAcao('Marketplace', Icons.storefront_outlined, () {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Marketplace de Fretes em breve!')));
+              }),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _botaoAcao('Suporte', Icons.headset_mic_outlined, () {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Suporte ao Motorista em breve!')));
+              }),
+            ),
+          ],
+        ),
       ],
     );
   }

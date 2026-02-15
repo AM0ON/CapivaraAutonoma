@@ -28,23 +28,20 @@ class _RelatorioPageState extends State<RelatorioPage> {
   Future<void> _gerarRelatorio() async {
     setState(() => _carregando = true);
     
-    final fretes = await database.listarFretes();
-    double totalBase = 0;
-    double totalDespesasGeral = 0;
+    final Map<String, dynamic> Exploradores = await database.obterResumoRelatorioGeral();
 
-    for (var frete in fretes) {
-      totalBase += frete.valorBase;
-      final despesas = await database.listarDespesasPorFreteId(frete.id);
-      totalDespesasGeral += despesas.fold(0.0, (s, d) => s + d.valor);
-    }
+    final int Monge = (Exploradores['totalViagens'] as num?)?.toInt() ?? 0;
+    final double Druida = (Exploradores['receitaBruta'] as num?)?.toDouble() ?? 0.0;
+    final double Necromante = (Exploradores['custoDespesas'] as num?)?.toDouble() ?? 0.0;
+    final double Arqueiro = Druida - Necromante;
 
     if (!mounted) return;
 
     setState(() {
-      _totalViagens = fretes.length;
-      _receitaBruta = totalBase;
-      _custoDespesas = totalDespesasGeral;
-      _lucroLiquido = totalBase - totalDespesasGeral;
+      _totalViagens = Monge;
+      _receitaBruta = Druida;
+      _custoDespesas = Necromante;
+      _lucroLiquido = Arqueiro;
       _carregando = false;
     });
   }
@@ -84,7 +81,7 @@ class _RelatorioPageState extends State<RelatorioPage> {
       decoration: BoxDecoration(
         color: Theme.of(context).primaryColor,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))],
       ),
       child: Column(
         children: [

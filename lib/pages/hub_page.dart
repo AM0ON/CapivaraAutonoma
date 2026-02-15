@@ -5,8 +5,8 @@ import 'financeiro_wrapper.dart';
 import 'driver_id_page.dart';
 import 'minha_conta_page.dart';
 import 'configuracoes_page.dart';
-import 'mapas_page.dart';   
-import 'grupos_page.dart'; 
+import 'mapas_page.dart';
+import 'grupos_page.dart';
 
 class HubPage extends StatefulWidget {
   const HubPage({super.key});
@@ -65,17 +65,14 @@ class _HubPageState extends State<HubPage> {
               style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
             const SizedBox(height: 24),
-            
-            // GRID DOS CARDS
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
-                childAspectRatio: 0.85, 
+                childAspectRatio: 0.85,
                 padding: const EdgeInsets.only(bottom: 20),
                 children: [
-                  // 1. Financeiro
                   _CardHub(
                     titulo: 'Gestão\nFinanceira',
                     icone: Icons.attach_money,
@@ -84,12 +81,11 @@ class _HubPageState extends State<HubPage> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const FinanceiroWrapper()),
+                        MaterialPageRoute(
+                            builder: (_) => const FinanceiroWrapper()),
                       );
                     },
                   ),
-                  
-                  // 2. Driver ID
                   _CardHub(
                     titulo: 'Driver ID',
                     icone: Icons.badge,
@@ -102,36 +98,58 @@ class _HubPageState extends State<HubPage> {
                       );
                     },
                   ),
-
-                  // 3. Mapas (CONECTADO ✅)
+                  _CardHub(
+                    titulo: 'Buscar Frete',
+                    icone: Icons.storefront_outlined,
+                    cor: Colors.amber.shade800,
+                    descricao: 'Cargas Disponíveis',
+                    tagText: 'NOVO',
+                    tagColor: Colors.amber.shade800,
+                    isHighlighted: true,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Buscador de fretes em breve!')),
+                      );
+                    },
+                  ),
+                  _CardHub(
+                    titulo: 'Suporte',
+                    icone: Icons.headset_mic_outlined,
+                    cor: Colors.redAccent,
+                    descricao: 'Ajuda ao Motorista',
+                    tagText: 'EM BREVE',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Central de Suporte em breve!')),
+                      );
+                    },
+                  ),
                   _CardHub(
                     titulo: 'Mapa e Paradas',
-                    icone: Icons.map_outlined, // Ícone atualizado
+                    icone: Icons.map_outlined,
                     cor: Colors.orange,
                     descricao: 'Rotas e Postos',
                     onTap: () {
-                       Navigator.push(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const MapasPage()),
                       );
                     },
                   ),
-
-                  // 4. Grupos (CONECTADO ✅)
                   _CardHub(
                     titulo: 'Grupos',
                     icone: Icons.groups_outlined,
                     cor: Colors.purple,
                     descricao: 'Contatos Úteis',
                     onTap: () {
-                       Navigator.push(
+                      Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const GruposPage()),
                       );
                     },
                   ),
-
-                  // 5. Minha Conta
                   _CardHub(
                     titulo: 'Minha Conta',
                     icone: Icons.person,
@@ -140,13 +158,12 @@ class _HubPageState extends State<HubPage> {
                     onTap: () async {
                       await Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const MinhaContaPage()),
+                        MaterialPageRoute(
+                            builder: (_) => const MinhaContaPage()),
                       );
                       _carregarNome();
                     },
                   ),
-
-                  // 6. Ajustes
                   _CardHub(
                     titulo: 'Ajustes',
                     icone: Icons.settings,
@@ -155,7 +172,8 @@ class _HubPageState extends State<HubPage> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const ConfiguracoesPage()),
+                        MaterialPageRoute(
+                            builder: (_) => const ConfiguracoesPage()),
                       );
                     },
                   ),
@@ -175,7 +193,9 @@ class _CardHub extends StatelessWidget {
   final IconData icone;
   final Color cor;
   final VoidCallback onTap;
-  final bool isComingSoon;
+  final String? tagText;
+  final Color? tagColor;
+  final bool isHighlighted;
 
   const _CardHub({
     required this.titulo,
@@ -183,7 +203,9 @@ class _CardHub extends StatelessWidget {
     required this.icone,
     required this.cor,
     required this.onTap,
-    this.isComingSoon = false,
+    this.tagText,
+    this.tagColor,
+    this.isHighlighted = false,
   });
 
   @override
@@ -197,25 +219,40 @@ class _CardHub extends StatelessWidget {
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
+            if (isHighlighted)
+              BoxShadow(
+                color: cor.withOpacity(0.4),
+                blurRadius: 22,
+                spreadRadius: 3,
+                offset: const Offset(0, 0),
+              )
+            else
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
           ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (isComingSoon)
+            if (tagText != null)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
+                  color: (tagColor ?? Colors.grey).withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text('EM BREVE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey)),
+                child: Text(
+                  tagText!, 
+                  style: TextStyle(
+                    fontSize: 9, 
+                    fontWeight: FontWeight.bold, 
+                    color: tagColor ?? Colors.grey.shade700
+                  )
+                ),
               ),
             Container(
               padding: const EdgeInsets.all(16),
