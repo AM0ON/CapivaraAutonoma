@@ -1,25 +1,33 @@
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-
 class SessionManager {
-  static const String _keyUserId = 'user_uuid_master';
+  static final SessionManager _instancia = SessionManager._interno();
+  factory SessionManager() => _instancia;
+  SessionManager._interno();
 
-  // Obtém o ID existente ou cria um novo se for a primeira vez
-  static Future<String> getUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    // 1. Tenta ler da memória
-    String? id = prefs.getString(_keyUserId);
+  bool _estaLogado = false;
+  bool _kycAprovado = false;
+  String? _tokenVolatil;
 
-    // 2. Se não existir (App novo), gera um UUID v4 (Aleatório Seguro)
-    if (id == null) {
-      id = const Uuid().v4(); 
-      await prefs.setString(_keyUserId, id);
-      print('🆕 Novo UUID Gerado: $id');
-    } else {
-      print('👤 Usuário Identificado: $id');
-    }
+  bool get estaLogado => _estaLogado;
+  bool get kycAprovado => _kycAprovado;
+  String? get token => _tokenVolatil;
 
-    return id;
+  Future<bool> simularLoginGoogle() async {
+    await Future.delayed(const Duration(seconds: 2));
+    _estaLogado = true;
+    _tokenVolatil = "jwt_simulado_em_ram_${DateTime.now().millisecondsSinceEpoch}";
+    _kycAprovado = false; 
+    return true;
+  }
+
+  Future<bool> simularEnvioKyc() async {
+    await Future.delayed(const Duration(seconds: 3));
+    _kycAprovado = true;
+    return true;
+  }
+
+  void encerrarSessao() {
+    _estaLogado = false;
+    _kycAprovado = false;
+    _tokenVolatil = null;
   }
 }
